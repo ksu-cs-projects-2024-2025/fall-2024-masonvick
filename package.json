@@ -1,0 +1,20 @@
+{
+  "name": "fall-2024-masonvick",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ksu-cs-projects-2024-2025/fall-2024-masonvick.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ksu-cs-projects-2024-2025/fall-2024-masonvick/issues"
+  },
+  "homepage": "https://github.com/ksu-cs-projects-2024-2025/fall-2024-masonvick#readme"
+}
