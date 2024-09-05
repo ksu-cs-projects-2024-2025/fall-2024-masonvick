@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic Tac Toe</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Placeholder for the navigation bar -->
+    <div id="navbar"></div>
+
+    
+    <div id="content">
+        <h1>Tic Tac Toe</h1>
+        <!-- The game board -->
+        <div id="board" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 300px;"></div>
+        <div id="message"></div>
+        <button id="resetButton">Reset Game</button>
+    </div>
+
+
+
+
+    <!-- Load the socket.io library -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io('http://localhost:3000');
+        const board = document.getElementById('board');
+        const message = document.getElementById('message');
+        const resetButton = document.getElementById('resetButton');
+
+        socket.on('gameState', (gameState) => {
+            updateBoard(gameState);
+            if (gameState.winner) {
+                message.textContent = `Player ${gameState.winner} wins!`;
+            } else {
+                message.textContent = `Player ${gameState.currentPlayer}'s turn`;
+            }
+        });
+
+        board.addEventListener('click', (event) => {
+            const index = Array.from(board.children).indexOf(event.target);
+            if (index >= 0) {
+                socket.emit('makeMove', index);
+            }
+        });
+
+        resetButton.addEventListener('click', () => {
+            socket.emit('resetGame');
+        });
+
+        function updateBoard(gameState) {
+            board.innerHTML = '';
+            gameState.board.forEach((cell, index) => {
+                const cellDiv = document.createElement('div');
+                cellDiv.classList.add('cell');
+                cellDiv.textContent = cell;
+                board.appendChild(cellDiv);
+            });
+        }
+    </script>
+
+    <!-- Load the navigation bar from a separate HTML file -->
+    <script>
+        fetch('navbar.html')
+            .then(response => response.text())
+            .then(data => document.getElementById('navbar').innerHTML = data);
+    </script>
+</body>
+</html>
