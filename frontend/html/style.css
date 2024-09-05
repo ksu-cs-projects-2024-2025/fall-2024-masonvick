@@ -1,0 +1,45 @@
+/***************navbar styles************/
+.navbar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    background-color: #333;
+    padding: 10px;
+    position: fixed;
+    top: 0;
+    left: 0; /* Ensure the navbar starts from the left edge */
+    width: 100%;
+    z-index: 1000;
+    box-sizing: border-box; /* Include padding in the element's total width */
+}
+
+.navbar-content {
+    display: flex;
+    /*gap: 100000px;  gap doesnt work */
+    align-items: center;
+
+}
+
+.navbar a {
+    background-color: #555; /* Button color */
+    color: #fff; /* Text color */
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+}
+
+
+.navbar a:hover {
+    background-color: #777; /* Button hover color */
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+}
