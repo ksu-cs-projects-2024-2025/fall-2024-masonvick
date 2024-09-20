@@ -16,5 +16,8 @@
   "bugs": {
     "url": "https://github.com/ksu-cs-projects-2024-2025/fall-2024-masonvick/issues"
   },
-  "homepage": "https://github.com/ksu-cs-projects-2024-2025/fall-2024-masonvick#readme"
+  "homepage": "https://github.com/ksu-cs-projects-2024-2025/fall-2024-masonvick#readme",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
 }

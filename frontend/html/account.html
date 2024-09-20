@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel ="stylesheet" href="style.css" >
+</head>
+
+<script>
+    // Load the navigation bar from a separate HTML file
+    fetch('navbar.html')
+        .then(response => response.text())
+        .then(data => document.getElementById('navbar').innerHTML = data);
+</script>
+
+
+
+<body>
+<!-- Placeholder for the navigation bar -->
+<div id="navbar"></div>
+
+<!-- Content that changes -->
+    <div id="content">
+        <!-- login -->
+        <div class="login-container">
+            <h2>Login</h2>
+            <form id="registrationForm">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" autocomplete="username" required><br>
+
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" autocomplete="email" required><br>
+
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" autocomplete="new-password" required><br>
+
+                <button type="submit">Register</button>
+                <a href="/auth/google">Login with Google</a>
+            </form>
+        </div>
+        <div id="loginMessage" class="message-success hidden">Successfully logged in!</div>
+    </div>
+
+
+    <script>
+        // Load the navigation bar from a separate HTML file
+        fetch('navbar.html')
+            .then(response => response.text())
+            .then(data => document.getElementById('navbar').innerHTML = data);
+
+        // Check login status when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('/check-login')
+                .then(response => response.json())
+                .then(data => {
+                    const loginForm = document.querySelector('.login-container');
+                    const loginMessage = document.getElementById('loginMessage');
+                    const loginButton = document.querySelector('.login-container a');
+                    if (data.loggedIn) {
+                        loginMessage.classList.remove('hidden');
+                        loginMessage.textContent = 'Successfully logged in!';
+                        loginButton.classList.add('disabled');
+                        loginButton.textContent = 'Logged In';
+                        // Disable all input fields and the register button
+                        document.getElementById('username').disabled = true;
+                        document.getElementById('email').disabled = true;
+                        document.getElementById('password').disabled = true;
+                        document.querySelector('#registrationForm button').disabled = true;
+                        loginForm.style.opacity = 0.5; // Additional visual cue for disabled form
+                    }
+                })
+                .catch(error => console.error('Error checking login status:', error));
+        });
+
+
+    </script>
+
+</body>
+
+
+</html>
+
