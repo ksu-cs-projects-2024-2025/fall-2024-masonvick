@@ -1,4 +1,5 @@
-//import basic requirements for server stuff
+// backend/server.js
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -11,92 +12,63 @@ const GOOGLE_CLIENT_SECRET = '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';
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
 
-//create express app
-const app = express();
+// Import the matchmaking manager
+const matchmakingManager = require('./matchmakingManager');
 
-//make server using express & socketio server using the server
+const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// making the gamestate to store game info
-let gameState = {
-    board: Array(9).fill(null),
-    currentPlayer: 'X',
-    winner: null,  
-};
-
-// Serve static files from the frontend/html directory (not sure if this is needed... confused how it works)
+// Serve static files from the frontend/html directory (e.g., HTML, CSS, JS)
 app.use(express.static(path.join(__dirname, '../frontend/html')));
 
-// Handle new WebSocket connections (when a client connects to the server)
-io.on('connection', (socket) => {
-    console.log('A user connected');
+//if you're using different ports (Cross-Origin Resource Sharing)
+const cors = require('cors');
+app.use(cors()); // Use this BEFORE your route definitions
 
-    // Send the initial game state to the newly connected user.
-    // Best to do upon connection
-    socket.emit('gameState', gameState);
 
-    // Handle player moves
-    socket.on('makeMove', (index) => {
-        //check if a square is occupied
-        if (gameState.board[index] || gameState.winner) return;
+console.log('Initializing Tic-Tac-Toe Router...');
+const ticTacToeRouter = require('./routes/tictactoe')(io);
+console.log('Tic-Tac-Toe Router Initialized');
 
-        // Update game state
-        gameState.board[index] = gameState.currentPlayer;
-        gameState.winner = checkWinner(gameState.board);
+console.log('Initializing Battleship Router...');
+const battleshipRouter = require('./routes/battleship')(io);
+console.log('Battleship Router Initialized');
 
-        if (!gameState.winner) {
-            gameState.currentPlayer = gameState.currentPlayer === 'X' ? 'O' : 'X';
-        }
+// game routers (middleware registration)
+app.use('/tic-tac-toe', ticTacToeRouter);  // Tic-Tac-Toe
+app.use('/battleship', battleshipRouter);  // Battleship (empty for now)
 
-        // Broadcast the updated game state to all connected users
-        io.emit('gameState', gameState);
-    });
 
-    // Handle game reset (currently just clear the board)
-    socket.on('resetGame', () => {
-        //put gamestate back to initial values
-        gameState = {
-            board: Array(9).fill(null),
-            currentPlayer: 'X',
-            winner: null,
-        };
-        io.emit('gameState', gameState);
-    });
+/////////////////////////////database stuff
+const sql = require('mssql');
 
-    // Handle disconnection
-    socket.on('disconnect', () => {
-        console.log('A user disconnected');
-    });
-});
-
-// Function to check if there's a winner
-function checkWinner(board) {
-    const winningCombinations = [
-        //winning combinations
-        [0, 1, 2],[3, 4, 5],[6, 7, 8], //horizontals
-        [0, 3, 6],[1, 4, 7],[2, 5, 8], //verticals
-        [0, 4, 8],[2, 4, 6], //diagonals
-    ];
-
-    //loop for each winning combination
-    for (let combination of winningCombinations) {
-        //turn each one into a,b,c (instead of specific numbers)
-        const [a, b, c] = combination;
-        //see if that combination consists of 3 of the same letter
-        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-            return board[a];
-        }
+// Configuration object for SQL Server connection
+const dbConfig = {
+    user: 'sa',         // Your SQL Server username
+    password: 'pw',     // Your SQL Server password
+    server: 'DESKTOP-6MJKC5D',          // Your SQL Server instance
+    database: 'siteDB',          // The database you created
+    options: {
+        encrypt: true,            // Required if you're using Azure
+        trustServerCertificate: true // Use this for self-signed certificates or localhost
     }
+};
 
-    return null; //no winner
+// Function to connect to the SQL Server database
+async function connectToDatabase() {
+    try {
+        await sql.connect(dbConfig);
+        console.log('Connected to SQL Server');
+    } catch (err) {
+        console.error('Database connection failed:', err);
+    }
 }
 
+// Call the connect function when your app starts
+connectToDatabase();
 
 
-
-
-///////////////// Google Sign in Stuff
 
 // Configure Passport.js
 passport.use(new GoogleStrategy({
@@ -199,35 +171,59 @@ app.get('/check-login', (req, res) => {
 });
 
 
-//////////////SQL database stuff
-const sql = require('mssql');
 
-// Configuration object for SQL Server connection
-const dbConfig = {
-    user: 'sa',         // Your SQL Server username
-    password: 'pw',     // Your SQL Server password
-    server: 'DESKTOP-6MJKC5D',          // Your SQL Server instance
-    database: 'siteDB',          // The database you created
-    options: {
-        encrypt: true,            // Required if you're using Azure
-        trustServerCertificate: true // Use this for self-signed certificates or localhost
+
+// Endpoint to create a new game session of a specific type
+app.post('/create-game', (req, res) => {
+    if (!req.body.gameType) {
+        return res.status(400).send({ error: 'Game type is required' });
     }
-};
-
-// Function to connect to the SQL Server database
-async function connectToDatabase() {
     try {
-        await sql.connect(dbConfig);
-        console.log('Connected to SQL Server');
-    } catch (err) {
-        console.error('Database connection failed:', err);
+        const gameType = req.body.gameType;
+        const gameId = matchmakingManager.createGameSession(gameType);
+        res.json({ gameId });
+    } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: 'Failed to create game session' });
     }
-}
+});
 
-// Call the connect function when your app starts
-connectToDatabase();
+// Endpoint to join a specific game using a gameId
+app.post('/join-game', (req, res) => {
+    const { gameId, playerId } = req.body;
+    if (!gameId || !playerId) {
+        return res.status(400).send({ error: 'Game ID and Player ID are required' });
+    }
+    try {
+        if (matchmakingManager.joinGame(gameId, playerId)) {
+            res.json({ success: true, gameId });
+        } else {
+            res.status(404).send({ error: 'Game not found or is full.' });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).send({ error: 'Failed to join game' });
+    }
+});
+
+// Endpoint for quick match
+app.post('/quick-match', (req, res) => {
+    const { gameType, playerId } = req.body;
+    const gameId = matchmakingManager.findMatch(gameType, playerId, io);
+    if (gameId) {
+        console.log(`Game ID ${gameId} created, notifying players`);
+        res.json({ success: true, gameId });
+    } else {
+        res.status(202).send({ message: "Added to quick match queue." });
+    }
+});
 
 
+
+app.use(function(err, req, res, next) {
+    console.error(err.stack);
+    res.status(500).send('Something broke!');
+});
 
 // Start the server
 const PORT = 3000;
