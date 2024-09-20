@@ -1,3 +1,9 @@
+/*frontend/html/style.css*/
+
+h1 {
+    text-align: center;
+}
+
 /***************navbar styles************/
 .navbar {
     display: flex;
@@ -71,4 +77,119 @@ body {
 
 #resetButton {
     margin-top: 20px;
+}
+
+
+/*********** Account page styles ************/
+.login-container {
+    background-color: white;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    width: 100%; /* Adjust width as needed */
+    max-width: 400px; /* Set a max-width for larger screens */
+    margin: auto; /* Center the container on the page */
+}
+
+.login-container h2 {
+    text-align: center; /* Center the Login title */
+    margin-bottom: 20px;
+}
+
+.login-container label,
+.login-container input,
+.login-container a,
+.login-container button {
+    width: 90%; /* Adjust width to fit within the form */
+    margin-top: 10px; /* Space out elements */
+    box-sizing: border-box; /* Include padding and border in width */
+}
+
+.login-container a {
+    display: inline-block;
+    background-color: #dd4b39; /* Google's brand color */
+    color: white;
+    text-align: center;
+    padding: 12px;
+    border-radius: 4px;
+    text-decoration: none; /* Remove underline from link */
+}
+
+.login-container a.disabled {
+    background-color: #cc0000; /* Red background for logged-in state */
+    cursor: default; /* Neutral cursor to indicate no action */
+    pointer-events: none; /* Disable any click actions */
+}
+
+.login-container a:hover {
+    background-color: #c23321; /* Darker shade on hover */
+}
+
+.login-container form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.login-container input[type="email"],
+.login-container input[type="text"],
+.login-container input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+}
+
+.login-container input[type="submit"] {
+    width: 100%;
+    padding: 10px;
+    background-color: #28a745;
+    border: none;
+    border-radius: 3px;
+    color: white;
+    cursor: pointer;
+}
+
+.login-container input[type="submit"]:hover {
+    background-color: #218838;
+}
+
+.hidden {
+    display: none;
+}
+
+.login-container.disabled {
+    pointer-events: none; /* Disables interactions */
+    opacity: 0.7; /* Partial transparency to indicate non-interactivity */
+    filter: grayscale(100%); /* Adds a grayscale to imply disabled state */
+}
+
+input:disabled, button:disabled {
+    background-color: #ccc; /* Greyed out buttons */
+    cursor: not-allowed; /* Red circle cursor */
+}
+
+button {
+    background-color: #555;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    width: 100%;
+}
+
+button:hover, button:disabled {
+    background-color: #777; /* Lighter gray when disabled */
+}
+
+.message-success {
+    color: #4CAF50;
+    background-color: #DFF0D8;
+    border: 1px solid #C3E6CB;
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 20px;
+    text-align: center;
 }
