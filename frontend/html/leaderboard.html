@@ -1,0 +1,103 @@
+<!-- frontend/html/leaderboard.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Placeholder for the navigation bar -->
+    <div id="navbar"></div>
+
+    <h1>Leaderboard</h1>
+
+    <!-- Dropdown to select the game -->
+    <label for="gameSelect">Select a Game:</label>
+    <select id="gameSelect">
+        <option value="tic-tac-toe">Tic Tac Toe</option>
+        <option value="lightbikes">Lightbikes</option>
+        <!-- Add more games here -->
+    </select>
+
+    <!-- Table to display the leaderboard -->
+    <table id="leaderboardTable" border="1">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Total Wins</th>
+                <th>Total Losses</th>
+                <th>W/L Ratio</th>
+                <th>Average Moves per Game</th>
+                <th>Average Game Length (seconds)</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const gameSelect = document.getElementById('gameSelect');
+            const leaderboardTableBody = document.getElementById('leaderboardTable').getElementsByTagName('tbody')[0];
+    
+            // Fetch leaderboard data for the selected game
+            async function fetchLeaderboard(game) {
+                try {
+                    const response = await fetch(`/leaderboard/${game}`);
+                    const data = await response.json();
+                    console.log('Leaderboard Data:', data);  // Add this line for debugging
+    
+                    // Clear existing rows
+                    leaderboardTableBody.innerHTML = '';
+    
+                    // Populate leaderboard table
+                    data.forEach(user => {
+                        // Skip users with no games played
+                        const totalGamesPlayed = user.TotalWins + user.TotalLosses;
+                        if (totalGamesPlayed === 0) return;
+    
+                        // Calculate win/loss ratio, average moves, and game length with 2 decimal places
+                        const winLossRatio = (user.TotalWins / (user.TotalLosses || 1)).toFixed(2);  // Prevent divide by zero
+                        const averageMoves = (user.AverageMovesPerGame || 0).toFixed(2);  // Format to 2 decimal places
+                        const averageGameLength = (user.AverageGameLengthInSeconds || 0).toFixed(2);  // Format to 2 decimal places
+    
+                        // Create row for the user
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${user.UserName}</td>
+                            <td>${user.TotalWins}</td>
+                            <td>${user.TotalLosses}</td>
+                            <td>${winLossRatio}</td>
+                            <td>${averageMoves}</td>
+                            <td>${averageGameLength}</td>
+                        `;
+    
+                        leaderboardTableBody.appendChild(row);
+                    });
+                } catch (err) {
+                    console.error('Error fetching leaderboard:', err);
+                }
+            }
+    
+            // Event listener for game selection
+            gameSelect.addEventListener('change', (event) => {
+                fetchLeaderboard(event.target.value);
+            });
+    
+            // Fetch leaderboard for the default game on page load
+            fetchLeaderboard(gameSelect.value);
+        });
+    </script>
+    
+
+    <!-- Load the navigation bar from a separate HTML file -->
+    <script>
+        fetch('navbar.html')
+            .then(response => response.text())
+            .then(data => document.getElementById('navbar').innerHTML = data);
+    </script>
+
+</body>
+</html>

@@ -30,32 +30,13 @@ module.exports = (io) => {
         // Handle user identification
         socket.on('identify', (userId) => {
             socket.userId = userId;
-            console.log(`User with Google ID ${userId} connected with socket ID: ${socket.id}`);
+            console.log(`User with ID ${userId} connected with socket ID: ${socket.id}`);
         });
 
         // Handle Quick Match requests
         socket.on('quickMatch', ({ gameType, userId }) => {
             console.log(`Quick match requested by ${userId} for ${gameType}`);
-
-            // Call the quick match logic from the controller
-            ticTacToeController.findMatch(io, socket, gameType, userId);
-
-            // Listen for when the match is found and emit the game state
-            socket.on('matchFound', ({ gameId, opponent }) => {
-                console.log(`Match found for game ${gameId}. Emitting initial game state...`);
-
-                // Make both players join the game room
-                socket.join(gameId);  // Add the current player to the room
-                const opponentSocket = io.sockets.sockets.get(opponent);  // Get the opponent's socket
-                if (opponentSocket) {
-                    opponentSocket.join(gameId);  // Add the opponent to the same room
-                } else {
-                    console.error(`Opponent's socket (${opponent}) not found.`);
-                }
-
-                // Emit the initial game state to both players
-                ticTacToeController.emitGameState(io, gameId);
-            });
+            ticTacToeController.findMatch(io, socket, gameType, userId);  // Use Tic-Tac-Toe findMatch logic
         });
 
         // Handle players joining the game room
@@ -91,15 +72,6 @@ module.exports = (io) => {
         // Handle disconnection
         socket.on('disconnect', () => {
             console.log(`User with socket ID: ${socket.id} disconnected.`);
-        
-            // Remove the player from the connectedPlayers map
-            const userId = Object.keys(connectedPlayers).find(key => connectedPlayers[key] === socket.id);
-            if (userId) {
-                delete connectedPlayers[userId];
-                console.log(`Removed ${userId} from connected players.`);
-            }
-        
-            // Additional logic for handling disconnects can be added here
         });
     });
 

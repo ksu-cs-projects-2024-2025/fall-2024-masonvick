@@ -3,81 +3,186 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <link rel ="stylesheet" href="style.css" >
+    <title>Login/Register</title>
+    <link rel="stylesheet" href="style.css">
 </head>
-
-<script>
-    // Load the navigation bar from a separate HTML file
-    fetch('navbar.html')
-        .then(response => response.text())
-        .then(data => document.getElementById('navbar').innerHTML = data);
-</script>
-
-
-
 <body>
-<!-- Placeholder for the navigation bar -->
-<div id="navbar"></div>
+    <!-- Placeholder for the navigation bar -->
+    <div id="navbar"></div>
 
-<!-- Content that changes -->
-    <div id="content">
-        <!-- login -->
-        <div class="login-container">
+    <!-- Tab Navigation for Login and Register -->
+    <div class="login-container">
+        <div class="tab">
+            <button class="tablinks active" onclick="openTab(event, 'Login')">Login</button>
+            <button class="tablinks" onclick="openTab(event, 'Register')">Register</button>
+        </div>
+
+        <!-- Login Form -->
+        <div id="Login" class="tabcontent active">
             <h2>Login</h2>
-            <form id="registrationForm">
-                <label for="username">Username:</label>
-                <input type="text" id="username" name="username" autocomplete="username" required><br>
+            <form id="loginForm">
+                <label for="loginEmailOrUsername">Email or Username:</label>
+                <input type="text" id="loginEmailOrUsername" name="emailOrUsername" required><br>
 
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email" autocomplete="email" required><br>
+                <label for="loginPassword">Password:</label>
+                <input type="password" id="loginPassword" name="password" required><br>
 
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" autocomplete="new-password" required><br>
-
-                <button type="submit">Register</button>
-                <a href="/auth/google">Login with Google</a>
+                <button type="submit" id="loginButton">Login</button> <!-- Add this ID -->
+                <a href="/auth/google" id="loginGoogleButton">Login with Google</a> <!-- Add this ID -->
             </form>
         </div>
-        <div id="loginMessage" class="message-success hidden">Successfully logged in!</div>
+
+        <!-- Register Form -->
+        <div id="Register" class="tabcontent">
+            <h2>Register</h2>
+            <form id="registrationForm">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required><br>
+            
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required><br>
+            
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required><br>
+            
+                <button type="submit" id="registerButton">Register</button> <!-- Add this ID -->
+            </form>
+        </div>
+
+        <!-- Success message -->
+        <div id="loginSuccessMessage" class="message-success" style="display: none;">
+            Successfully logged in!
+        </div>
     </div>
 
+    
 
     <script>
-        // Load the navigation bar from a separate HTML file
+        // Function to handle tab switching
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+
+
+        // Function to disable form fields and show success message
+        function displaySuccessMessage() {
+            document.getElementById('loginSuccessMessage').style.display = 'block';
+
+            // Disable the login form fields
+            document.getElementById('loginEmailOrUsername').disabled = true;
+            document.getElementById('loginPassword').disabled = true;
+
+            // Disable the registration form fields
+            document.getElementById('username').disabled = true;
+            document.getElementById('email').disabled = true;
+            document.getElementById('password').disabled = true;
+
+            // Disable the login buttons
+            document.getElementById('loginButton').disabled = true;
+            
+            // Disable the Google login link by preventing its default behavior and adding a visual effect
+            //had to do this because its an anchor tag and not a button
+            const googleLoginButton = document.getElementById('loginGoogleButton');
+            googleLoginButton.style.pointerEvents = 'none'; // Disable pointer events to prevent clicking
+            googleLoginButton.style.opacity = '0.6';  // Reduce opacity to indicate it's disabled
+
+
+            // Disable the register button
+            document.getElementById('registerButton').disabled = true;
+
+            // Clear all the input fields
+            clearFormFields();
+        }
+
+
+        function clearFormFields() {
+            document.getElementById('loginEmailOrUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('username').value = '';
+            document.getElementById('email').value = '';
+            document.getElementById('password').value = '';
+        }
+
+        // After login success
+        function loginSuccessful(username, userId) {
+                // Store userId and username in variables
+                // Use this userId for matchmaking and game sessions
+                socket.emit('identify', userId);
+            }
+
+        // Handle registration form submission
+        document.getElementById('registrationForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+            const formData = {
+                username: document.getElementById('username').value,
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value
+            };
+
+            fetch('/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message.includes('taken') || data.message.includes('registered')) {
+                    alert(data.message);  // Show error if username or email is taken
+                } else {
+                    alert(data.message);  // Show success message
+                }
+            })
+            .catch(error => console.error('Error registering user:', error));
+        });
+
+        // Handle login form submission
+        document.getElementById('loginForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+            const formData = {
+                emailOrUsername: document.getElementById('loginEmailOrUsername').value,
+                password: document.getElementById('loginPassword').value
+            };
+
+            fetch('/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Store the userId to use for Quick Match
+                    userId = data.userId;
+                    console.log('User logged in with ID:', userId);
+
+                    // Call your function to disable fields and show success message
+                    displaySuccessMessage();
+                } else {
+                    alert('Login failed: ' + data.message);
+                }
+            })
+            .catch(error => console.error('Error logging in user:', error));
+        });
+    </script>
+
+    <script>
         fetch('navbar.html')
             .then(response => response.text())
             .then(data => document.getElementById('navbar').innerHTML = data);
-
-        // Check login status when the page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            fetch('/check-login')
-                .then(response => response.json())
-                .then(data => {
-                    const loginForm = document.querySelector('.login-container');
-                    const loginMessage = document.getElementById('loginMessage');
-                    const loginButton = document.querySelector('.login-container a');
-                    if (data.loggedIn) {
-                        loginMessage.classList.remove('hidden');
-                        loginMessage.textContent = 'Successfully logged in!';
-                        loginButton.classList.add('disabled');
-                        loginButton.textContent = 'Logged In';
-                        // Disable all input fields and the register button
-                        document.getElementById('username').disabled = true;
-                        document.getElementById('email').disabled = true;
-                        document.getElementById('password').disabled = true;
-                        document.querySelector('#registrationForm button').disabled = true;
-                        loginForm.style.opacity = 0.5; // Additional visual cue for disabled form
-                    }
-                })
-                .catch(error => console.error('Error checking login status:', error));
-        });
-
-
     </script>
-
 </body>
-
-
 </html>
-

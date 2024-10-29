@@ -12,6 +12,10 @@ const GOOGLE_CLIENT_SECRET = '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';
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
 
+//encryption for other login
+const bcrypt = require('bcrypt');  // Add bcrypt for password hashing
+const saltRounds = 10;
+
 // Import the matchmaking manager
 const matchmakingManager = require('./matchmakingManager');
 
@@ -26,18 +30,26 @@ app.use(express.static(path.join(__dirname, '../frontend/html')));
 const cors = require('cors');
 app.use(cors()); // Use this BEFORE your route definitions
 
+app.use(express.json());  // To parse JSON bodies
+app.use(express.urlencoded({ extended: true }));  // To parse URL-encoded bodies (for form submissions)
 
 console.log('Initializing Tic-Tac-Toe Router...');
 const ticTacToeRouter = require('./routes/tictactoe')(io);
 console.log('Tic-Tac-Toe Router Initialized');
-
+/*
 console.log('Initializing Battleship Router...');
 const battleshipRouter = require('./routes/battleship')(io);
 console.log('Battleship Router Initialized');
 
+console.log('Initializing Lightbikes Router...');
+const lightbikesRouter = require('./routes/lightbikes')(io);
+console.log('Lightbikes Router Initialized');
+*/
+
 // game routers (middleware registration)
 app.use('/tic-tac-toe', ticTacToeRouter);  // Tic-Tac-Toe
-app.use('/battleship', battleshipRouter);  // Battleship (empty for now)
+//app.use('/battleship', battleshipRouter);  // Battleship (empty for now)
+//app.use('/lightbikes', lightbikesRouter);  // Lightbikes
 
 
 /////////////////////////////database stuff
@@ -83,13 +95,25 @@ passport.use(new GoogleStrategy({
   }
 ));
 
-// Serialize and deserialize user
+// Serialize the user ID to store in the session
 passport.serializeUser((user, done) => {
-    done(null, user);
+    console.log('Serializing user:', user.Id);  // Log user ID
+    done(null, user.Id);  // Store the user ID in the session
 });
 
-passport.deserializeUser((user, done) => {
-    done(null, user);
+// Deserialize the user by finding them in the database using the user ID
+passport.deserializeUser(async (id, done) => {
+    console.log('Deserializing user with ID:', id);
+    try {
+        const result = await sql.query`SELECT * FROM Users WHERE Id = ${id}`;
+        if (result.recordset.length === 0) {
+            return done(new Error('User not found'), null);
+        }
+        const user = result.recordset[0];
+        done(null, user);  // Attach the user object to the request
+    } catch (err) {
+        done(err, null);
+    }
 });
 
 // Set up session management
@@ -108,22 +132,26 @@ app.get('/auth/google',
     passport.authenticate('google', { scope: ['profile', 'email'] })
 );
   
-app.get('/auth/google/callback',
+app.get('/auth/google/callback', 
     passport.authenticate('google', { failureRedirect: '/' }),
     async (req, res) => {
         const { id, displayName, emails } = req.user;  // Extract user info from Google
         const email = emails[0].value;
+        const username = email.split('@')[0];  // Extract the username from the email
 
         try {
             // Check if the user exists in the Users table
             const result = await sql.query`SELECT * FROM Users WHERE GoogleId = ${id}`;
-            
+
             if (result.recordset.length === 0) {
-                // If the user doesn't exist, insert them into the Users table
-                await sql.query`INSERT INTO Users (GoogleId, Name, Email) VALUES (${id}, ${displayName}, ${email})`;
-                console.log('New user inserted into the database');
+                // Insert the user into the Users table with their GoogleId
+                await sql.query`
+                    INSERT INTO Users (GoogleId, Username, Name, Email)
+                    VALUES (${id}, ${username}, ${displayName}, ${email})`;
+
+                console.log('New Google user inserted into the database');
             } else {
-                console.log('User already exists in the database');
+                console.log('Google user already exists in the database');
             }
 
             res.redirect('/account');  // Redirect to the user's account page
@@ -137,10 +165,11 @@ app.get('/auth/google/callback',
 // Send user data via an API route (for Google ID)
 app.get('/api/user', (req, res) => {
     if (req.isAuthenticated()) {
-        // Send the authenticated user's info (Google ID)
-        res.json({ userId: req.user.id });
+        // Send back the logged-in user's ID
+        return res.json({ userId: req.user.Id });
     } else {
-        res.status(401).json({ error: 'Not authenticated' });
+        // If the user is not authenticated, return an error
+        return res.status(401).json({ message: 'User not authenticated' });
     }
 });
 
@@ -155,20 +184,107 @@ app.get('/account', (req, res) => {
     }
   });
 
-app.post('/register', (req, res) => {
-const { username, email, password } = req.body;
+// Handle user registration
+app.post('/register', async (req, res) => {
+    const { username, email, password } = req.body;
 
-// This info will be stored in a database eventually
-if (username && email && password) {
-    res.status(200).json({ message: 'User registered successfully!' });
-} else {
-    res.status(400).json({ message: 'All fields are required!' });
-}
+    console.log('Received registration request:', { username, email, password });
+
+    // Default Name and GoogleId to NULL for non-Google users
+    const name = null;
+    const googleId = null;
+
+    if (!username || !email || !password) {
+        return res.status(400).json({ message: 'All fields are required!' });
+    }
+
+    try {
+        // Check if the username or email already exists
+        const existingUser = await sql.query`
+            SELECT * FROM Users WHERE Username = ${username} OR Email = ${email}`;
+        
+        if (existingUser.recordset.length > 0) {
+            const isUsernameTaken = existingUser.recordset.some(user => user.Username === username);
+            const isEmailTaken = existingUser.recordset.some(user => user.Email === email);
+
+            if (isUsernameTaken) {
+                return res.status(400).json({ message: 'Username is already taken' });
+            }
+            if (isEmailTaken) {
+                return res.status(400).json({ message: 'Email is already registered' });
+            }
+        }
+
+        // Hash the password before saving it to the database
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
+        const createdAt = new Date();
+
+        console.log('Inserting user with:', { username, email, hashedPassword, createdAt, name, googleId });
+
+        // Insert the user into the Users table
+        await sql.query`
+            INSERT INTO Users (Username, Email, Password, CreatedAt, Name, GoogleId)
+            VALUES (${username}, ${email}, ${hashedPassword}, ${createdAt}, ${name}, ${googleId})`;
+
+        res.status(200).json({ message: 'User registered successfully!' });
+    } catch (error) {
+        console.error('Error registering user:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
 });
 
-app.get('/check-login', (req, res) => {
-    res.json({ loggedIn: req.isAuthenticated() });
+
+app.post('/login', async (req, res) => {
+    const { emailOrUsername, password } = req.body;
+
+    console.log('Login request received:', { emailOrUsername, password });
+
+    if (!emailOrUsername || !password) {
+        return res.status(400).json({ message: 'All fields are required!' });
+    }
+
+    try {
+        // SQL query to check user credentials
+        const request = new sql.Request();
+        request.input('emailOrUsername', sql.NVarChar, emailOrUsername);
+
+        const result = await request.query(`
+            SELECT * FROM Users 
+            WHERE Email = @emailOrUsername OR Username = @emailOrUsername
+        `);
+
+        if (result.recordset.length === 0) {
+            return res.status(400).json({ message: 'User not found' });
+        }
+
+        const user = result.recordset[0];
+        const isMatch = await bcrypt.compare(password, user.Password);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Invalid password' });
+        }
+
+        console.log('Password match success! Logging in...');
+
+        req.login(user, function(err) {
+            if (err) {
+                console.error('Login error:', err);
+                return res.status(500).json({ message: 'Error logging in' });
+            }
+
+            // **NEW**: Send the userId back to the frontend after successful login
+            return res.status(200).json({
+                success: true,
+                userId: user.Id,  // Send the userId to the client
+                username: user.Username  // Send the username for display if needed
+            });
+        });
+
+    } catch (error) {
+        console.error('Error logging in user:', error);
+        return res.status(500).json({ message: 'Internal server error' });
+    }
 });
+
 
 
 
@@ -215,6 +331,49 @@ app.post('/quick-match', (req, res) => {
         res.json({ success: true, gameId });
     } else {
         res.status(202).send({ message: "Added to quick match queue." });
+    }
+});
+
+
+// Add the leaderboard route
+app.get('/leaderboard/:game', async (req, res) => {
+    const gameType = req.params.game;
+
+    try {
+        // Fetch leaderboard data for the specified game type (e.g., Tic Tac Toe)
+        const result = await sql.query`
+            SELECT 
+                Users.Id AS UserId,
+                Users.Username AS UserName,
+                -- Calculate total wins for the user
+                SUM(CASE WHEN TicTacToeGames.WinnerId = Users.Id THEN 1 ELSE 0 END) AS TotalWins,
+                -- Calculate total losses for the user
+                SUM(CASE WHEN (TicTacToeGames.Player1Id = Users.Id OR TicTacToeGames.Player2Id = Users.Id) AND TicTacToeGames.WinnerId != Users.Id THEN 1 ELSE 0 END) AS TotalLosses,
+                -- Only include users who have played games (either wins or losses)
+                COUNT(TicTacToeGames.GameId) AS TotalGames,
+                -- Calculate the average moves per game, cast to float for precision
+                CAST(AVG(CAST(LEN(TicTacToeGames.Moves) / 2.0 AS FLOAT)) AS DECIMAL(10, 2)) AS AverageMovesPerGame,
+                -- Calculate the average game length in seconds, cast to float for precision
+                CAST(AVG(CAST(DATEDIFF(SECOND, TicTacToeGames.StartTime, TicTacToeGames.EndTime) AS FLOAT)) AS DECIMAL(10, 2)) AS AverageGameLengthInSeconds
+            FROM 
+                Users
+            LEFT JOIN 
+                TicTacToeGames ON Users.Id IN (TicTacToeGames.Player1Id, TicTacToeGames.Player2Id)
+            -- Exclude users with 0 total games (no wins or losses)
+            WHERE 
+                TicTacToeGames.GameId IS NOT NULL
+            GROUP BY 
+                Users.Id, Users.Username
+            HAVING 
+                SUM(CASE WHEN TicTacToeGames.WinnerId = Users.Id OR TicTacToeGames.WinnerId != Users.Id THEN 1 ELSE 0 END) > 0
+            ORDER BY 
+                TotalWins DESC, AverageMovesPerGame ASC;
+        `;
+
+        res.json(result.recordset);  // Send the leaderboard data as JSON
+    } catch (err) {
+        console.error('Error fetching leaderboard data:', err);
+        res.status(500).json({ error: 'Failed to retrieve leaderboard data' });
     }
 });
 

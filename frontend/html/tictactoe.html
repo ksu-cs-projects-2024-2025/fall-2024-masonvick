@@ -1,64 +1,266 @@
+<!-- frontend/html/tictactoe.html -->
+ 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tic Tac Toe</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=1.0"> <!-- Use the updated style.css -->
 </head>
 <body>
     <!-- Placeholder for the navigation bar -->
     <div id="navbar"></div>
 
-    
     <div id="content">
         <h1>Tic Tac Toe</h1>
+        
+        <!-- Game options for creating and joining games -->
+        <div id="gameOptions">
+            <button id="newGameButton">Create New Game</button>
+            <input type="text" id="gameCodeInput" placeholder="Enter Game Code">
+            <button id="joinGameButton">Join Game</button>
+            <button id="quickMatchButton">Quick Match</button>
+            <button id="rankedMatchButton">Ranked Match</button>
+        </div>
+
         <!-- The game board -->
-        <div id="board" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 300px;"></div>
+        <div id="board"></div>
         <div id="message"></div>
-        <button id="resetButton">Reset Game</button>
+        <button id="resetButton">Breaks when clicked (old reset button)</button>
+
+        <!-- Popup for searching status -->
+        <div id="searchingPopup">
+            <p id="searchingText">Searching for player...</p>
+            <button id="cancelSearchButton">Cancel</button>
+        </div>
     </div>
-
-
-
 
     <!-- Load the socket.io library -->
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io('http://localhost:3000');
-        const board = document.getElementById('board');
-        const message = document.getElementById('message');
-        const resetButton = document.getElementById('resetButton');
+        document.addEventListener('DOMContentLoaded', () => {
+            const socket = io('/tic-tac-toe');
+            let userId = null;
+            let isSearching = false;
+            let currentGameId = null;
+            let playerSymbol = null; // Store the player's symbol
+            let gameState = null;    // Store the game state
+    
+            // confirm user is logged in via Id
+            fetch('/api/user')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.userId) {
+                        userId = data.userId;  // Assign the userId here
+                        console.log('User is logged in with ID:', userId);
+                        socket.emit('identify', userId);
+                    } else {
+                        console.error('User not authenticated');
+                    }
+                })
+                .catch(error => console.error('Error checking user login status:', error));
 
-        socket.on('gameState', (gameState) => {
-            updateBoard(gameState);
-            if (gameState.winner) {
-                message.textContent = `Player ${gameState.winner} wins!`;
-            } else {
-                message.textContent = `Player ${gameState.currentPlayer}'s turn`;
-            }
-        });
+                
+            const boardElement = document.getElementById('board');
+            const messageElement = document.getElementById('message');
+            const resetButton = document.getElementById('resetButton');
+    
+            socket.on('matchFound', (data) => {
+                console.log('Match found for user with game ID:', data.gameId, 'Opponent:', data.opponent);
+                console.log('Your symbol is:', data.symbol);
+    
+                playerSymbol = data.symbol; // Store the player's symbol
+                // Display player's symbol
+                messageElement.textContent = `You are '${playerSymbol}'. Waiting for the game to start...`;
+    
+                // Hide the searching popup
+                document.getElementById('searchingPopup').style.display = 'none';
+    
+                // Set the current game ID and show the game board
+                currentGameId = data.gameId;
+                document.getElementById('board').style.display = 'grid';
+    
+                // Emit an event to join the game room and fetch the initial game state
+                socket.emit('joinGame', { gameId: data.gameId });
 
-        board.addEventListener('click', (event) => {
-            const index = Array.from(board.children).indexOf(event.target);
-            if (index >= 0) {
-                socket.emit('makeMove', index);
-            }
-        });
-
-        resetButton.addEventListener('click', () => {
-            socket.emit('resetGame');
-        });
-
-        function updateBoard(gameState) {
-            board.innerHTML = '';
-            gameState.board.forEach((cell, index) => {
-                const cellDiv = document.createElement('div');
-                cellDiv.classList.add('cell');
-                cellDiv.textContent = cell;
-                board.appendChild(cellDiv);
+                disableButtons();  // Disable buttons when the game starts
             });
-        }
+    
+            socket.on('gameState', (state) => {
+                gameState = state; // Store the game state
+                console.log('Received game state from server:', gameState);
+                updateBoard(gameState);
+    
+                // Update message based on game state
+                if (gameState.winner) {
+                    if (gameState.winner === playerSymbol) {
+                        messageElement.textContent = 'You win!';
+                    } else if (gameState.winner === 'Draw') {
+                        messageElement.textContent = 'It\'s a draw!';
+                    } else {
+                        messageElement.textContent = 'You lose!';
+                    }
+                    enableButtons();  // Re-enable buttons when game ends
+                } else if (gameState.currentPlayer === playerSymbol) {
+                    messageElement.textContent = `Your turn (${playerSymbol})`;
+                } else {
+                    messageElement.textContent = `Opponent's turn (${gameState.currentPlayer})`;
+                }
+            });
+    
+            // Listen for navigation attempts
+            window.addEventListener('beforeunload', (event) => {
+                if (currentGameId || isSearching) {
+                    // Show the warning if the user is in a game or searching for a match
+                    event.preventDefault();
+                    event.returnValue = 'You have a game in progress. If you leave, you will forfeit. Are you sure?';
+                    if (isSearching) {
+                        cancelSearch();  // Ensure search is canceled when navigating away
+                    }
+                }
+            });
+
+            // Add click event listeners to buttons that navigate away from the current game
+            document.querySelectorAll('button').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    if (currentGameId || isSearching) {
+                        const leave = confirm('You have a game in progress. If you leave, you will forfeit. Are you sure?');
+                        if (!leave) {
+                            event.preventDefault();  // Stop navigation if the user cancels
+                        } else {
+                            forfeitGame();  // Forfeit and continue
+                        }
+                    }
+                });
+            });
+
+            // Handle forfeiting the game when user confirms navigation
+            function forfeitGame() {
+                if (currentGameId) {
+                    socket.emit('forfeitGame', { gameId: currentGameId, userId });
+                    currentGameId = null;  // Clear the game ID since the user forfeited
+                }
+                if (isSearching) {
+                    cancelSearch();  // Call the search cancellation logic
+                }
+            }
+
+            // Cancel the search if the user cancels the search or navigates away
+            function cancelSearch() {
+                isSearching = false;
+                document.getElementById('searchingPopup').style.display = 'none';  // Hide the popup on cancel
+                socket.emit('cancelQuickMatch', { playerId: userId });
+            }
+
+            // Function to update the Tic Tac Toe board
+            function updateBoard(gameState) {
+                console.log('Updating the board with game state:', gameState);
+    
+                // Clear the board content
+                boardElement.innerHTML = ''; 
+    
+                // Loop through the gameState's board and render each cell
+                gameState.board.forEach((cell, index) => {
+                    // Create the cell element
+                    let cellElement = document.createElement('div');
+                    cellElement.classList.add('cell');
+                    cellElement.id = `cell-${index}`;
+    
+                    // Set the content to 'X', 'O', or empty
+                    cellElement.textContent = cell === null ? '' : cell;  // Ensure empty cells display as blank
+    
+                    // Add click event listener
+                    cellElement.addEventListener('click', () => handleCellClick(index));
+    
+                    // Append the cell to the board
+                    boardElement.appendChild(cellElement);
+                });
+            }
+    
+            function handleCellClick(index) {
+                if (gameState && !gameState.board[index] && !gameState.winner) {
+                    if (gameState.currentPlayer === playerSymbol) {
+                        socket.emit('makeMove', { gameId: currentGameId, index });
+                    } else {
+                        alert('It\'s not your turn!');
+                    }
+                }
+            }
+    
+            resetButton.addEventListener('click', () => {
+                socket.emit('requestRematch', { gameId: currentGameId });
+            });
+    
+            // Handle rematch requested by opponent
+            socket.on('rematchRequested', () => {
+                const acceptRematch = confirm('Your opponent wants to play again. Do you accept?');
+                if (acceptRematch) {
+                    socket.emit('acceptRematch', { gameId: currentGameId });
+                } else {
+                    socket.emit('declineRematch', { gameId: currentGameId });
+                }
+            });
+    
+            // Handle rematch accepted
+            socket.on('rematchAccepted', () => {
+                messageElement.textContent = 'Rematch accepted. Starting new game...';
+            });
+    
+            // Handle rematch declined
+            socket.on('rematchDeclined', () => {
+                alert('Your opponent declined to play again.');
+                messageElement.textContent = 'Your opponent declined the rematch.';
+            });
+    
+            document.getElementById('newGameButton').addEventListener('click', () => {
+                socket.emit('createGame');
+            });
+    
+            document.getElementById('joinGameButton').addEventListener('click', () => {
+                const gameCode = document.getElementById('gameCodeInput').value;
+                socket.emit('joinGame', { gameId: gameCode });
+            });
+    
+            // Quick match button listener
+            document.getElementById('quickMatchButton').addEventListener('click', () => {
+                console.log("Quick match button clicked. Requesting quick match with userId:", userId);
+                if (userId) {
+                    document.getElementById('searchingPopup').style.display = 'block';
+                    socket.emit('quickMatch', { gameType: 'tic-tac-toe', userId: userId });
+                } else {
+                    alert('No userId found, please log in.');
+                }
+            });
+
+            // Disable all game buttons
+            function disableButtons() {
+                document.querySelectorAll('button').forEach(button => {
+                    button.disabled = true;  // Disable each button
+                });
+            }
+
+            // Enable all game buttons
+            function enableButtons() {
+                document.querySelectorAll('button').forEach(button => {
+                    button.disabled = false;  // Enable each button
+                });
+            }
+                
+            document.getElementById('rankedMatchButton').addEventListener('click', () => {
+                document.getElementById('searchingPopup').style.display = 'block';  // Show the popup for ranked match
+                socket.emit('rankedMatch');
+            });
+    
+            // Event listener for cancelling the search or navigating away
+            document.getElementById('cancelSearchButton').addEventListener('click', () => {
+                cancelSearch();
+            });
+    
+            // Hide the popup and hide the board until the game starts
+            document.getElementById('searchingPopup').style.display = 'none';
+            document.getElementById('board').style.display = 'none';  // Hide the board initially
+        });
     </script>
 
     <!-- Load the navigation bar from a separate HTML file -->

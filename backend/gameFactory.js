@@ -1,85 +1,107 @@
-// backend/matchmakingManager.js
+// backend/gameFactory.js
 
-const { createGame } = require('./gameFactory');
-
-const games = {};
-const waitingPlayers = {};
-
-const generateGameId = () => Math.random().toString(36).substr(2, 9);
-
-
-// Join an existing game by gameId and playerId
-const joinGame = (gameId, playerId) => {
-    const game = games[gameId];
-    if (game && game.players.length < 2) {
-        game.players.push(playerId);
-        return true;
-    }
-    return false;
-};
-
-// Function to find a match or add player to queue
-const findMatch = (gameType, playerId) => {
-    console.log(`Looking for a match for session ${playerId} in game type ${gameType}`);
-    
-    // Initialize the queue for this game type if it doesn't exist
-    if (!waitingPlayers[gameType]) {
-        waitingPlayers[gameType] = [];
+class TicTacToeGame {
+    constructor() {
+        this.board = Array(9).fill(null);
+        this.currentPlayer = 'X';
+        this.players = [];          // Add this line
+        this.playerSymbols = {};    // Add this line
+        this.winner = null;         // Add this line
+        this.startTime = new Date();  // Store the time when the game starts
     }
 
-    // Try to find an opponent who is not the current player
-    const opponent = waitingPlayers[gameType].find(id => id !== playerId);
-
-    if (opponent) {
-        // Remove the opponent from the queue
-        waitingPlayers[gameType] = waitingPlayers[gameType].filter(id => id !== opponent);
-        console.log(`Match found between ${playerId} and ${opponent}`);
-
-        // Create a new game session
-        const gameId = generateGameId();
-        const game = createGame(gameType);
-
-        // Set the players on the game instance
-        game.players = [playerId, opponent];
-
-        // Randomly assign 'X' and 'O' to the players
-        const symbols = ['X', 'O'];
-        const randomIndex = Math.floor(Math.random() * 2);
-        game.playerSymbols = {
-            [playerId]: symbols[randomIndex],
-            [opponent]: symbols[1 - randomIndex]
+    initializeGameState() {
+        return {
+            board: this.board,
+            currentPlayer: this.currentPlayer,
+            winner: this.winner,
+            players: this.players,              // These will be set after initialization
+            playerSymbols: this.playerSymbols   // These will be set after initialization
         };
-
-        // Store the original player symbols to alternate in rematches
-        game.originalPlayerSymbols = { ...game.playerSymbols };
-
-        // Store the game instance directly in the games object
-        games[gameId] = game;
-
-        console.log('Game State after setting players and symbols:', game);
-
-        // Return match details
-        return { gameId, opponent };
-    } else {
-        // No match found, add this player to the queue
-        waitingPlayers[gameType].push(playerId);
-        console.log(`No match found, adding player ${playerId} to the queue.`);
-        return null;
     }
-};
+}
 
-// Create a new game session
-const createGameSession = (gameType) => {
-    const gameId = Math.random().toString(36).substr(2, 9);  // Random game ID
-    const game = createGame(gameType);
-    games[gameId] = game.initializeGameState();
-    return gameId;
-};
+class BattleshipGame {
+    constructor() {
+        this.board = []; // Initialize differently for Battleship
+        // Populate board with ships, etc.
+    }
+
+    initializeGameState() {
+        return {
+            board: this.board, // Likely will be more complex
+            currentPlayer: 'Player 1',
+            winner: null,
+            players: [],
+            phase: 'setup' // Different phases like 'setup' and 'battle'
+        };
+    }
+}
+
+class LightbikesGame {
+    constructor() {
+        this.players = [];
+        this.gameState = {
+            grid: Array(100 * 100).fill(null),  // 100x100 grid for the game
+            playerPositions: {},                // Store player positions
+            gameOver: false,
+            winner: null,
+            moves: []                           // Store all moves
+        };
+        this.currentPlayer = null;
+        this.startTime = new Date();            // Store the time when the game starts
+    }
+
+    initializeGameState() {
+        return {
+            grid: Array(75 * 75).fill(null),      // Create a fresh 100x100 grid for each game
+            players: [...this.players],             // Copy players to ensure immutability
+            playerPositions: {},                    // Empty object to set positions separately
+            gameOver: false,                        // Reset game over status
+            winner: null,                           // Reset winner status
+            moves: []                               // Fresh moves array
+        };
+    }
+}
 
 
-module.exports = {
-    createGameSession,
-    joinGame,
-    findMatch,
-    games
-};
+class WordleGame {
+    constructor() {
+        this.players = [];
+        this.gameState = {
+            grid: Array(6).fill('').map(() => Array(5).fill('')), // 6 rows for guesses, 5 columns for letters
+            currentGuesses: ['', ''], // For tracking each player’s current guesses
+            gameOver: false,
+            winner: null,
+            moves: [], // To log all moves
+        };
+        this.startTime = new Date();
+    }
+
+    initializeGameState() {
+        return {
+            grid: this.gameState.grid.map(row => [...row]), // Clone grid
+            players: [...this.players], // Clone players array
+            currentGuesses: [...this.gameState.currentGuesses],
+            gameOver: this.gameState.gameOver,
+            winner: this.gameState.winner,
+            moves: [...this.gameState.moves],
+        };
+    }
+}
+
+function createGame(gameType) {
+    if (gameType === "tic-tac-toe") {
+        return new TicTacToeGame();
+    } else if (gameType === "battleship") {
+        return new BattleshipGame();
+    } else if (gameType === "lightbikes") {
+        return new LightbikesGame();
+    }
+    else if (gameType === "wordle") {
+        return new WordleGame();
+    }
+    throw new Error("Unsupported game type");
+}
+
+module.exports = { createGame };
