@@ -1,0 +1,158 @@
+<!-- frontend/html/lightbikes.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lightbikes</title>
+    <link rel="stylesheet" href="style.css?v=1.0"> <!-- Use the updated style.css -->
+</head>
+<body>
+    <div id="navbar"></div>
+    <h1>Lightbikes</h1>
+    <div id="gameOptions">
+        <button id="newGameButton">Create New Game</button>
+        <input type="text" id="gameCodeInput" placeholder="Enter Game Code">
+        <button id="newGameButton">New Game</button>
+        <button id="joinGameButton">Join Game</button>
+        <button id="quickMatchButton">Quick Match</button>
+        <button id="rankedMatchButton">Ranked Match</button>
+    </div>
+
+    <div id="gameBoard">
+        <canvas id="lightbikesCanvas" width="500" height="500"></canvas>
+    </div>
+
+    <div id="searchingPopup">
+        <p id="searchingText">Searching for player...</p>
+        <button id="cancelSearchButton">Cancel</button>
+    </div>
+
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOM fully loaded and parsed."); // Add this for verification
+            const socket = io('/lightbikes');
+            let userId = null;
+            let currentGameId = null;
+    
+
+            socket.on('connect', () => {
+                console.log('Connected to /lightbikes namespace with socket ID:', socket.id);
+            });
+            // confirm user is logged in via Id
+            fetch('/api/user')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.userId) {
+                        userId = data.userId;  // Assign the userId here
+                        console.log('User is logged in with ID:', userId);
+
+                        // Emit 'identify' event to associate userId with the socket
+                        socket.emit('identify', userId);
+                    } else {
+                        console.error('User not authenticated');
+                    }
+                })
+                .catch(error => console.error('Error checking user login status:', error));
+    
+            // Focus the canvas on load
+            document.getElementById('lightbikesCanvas').focus();
+            
+            // Event listener for Quick Match button
+            document.getElementById('quickMatchButton').addEventListener('click', () => {
+                console.log("Requesting quick match with userId:", userId);  // Ensure userId is passed here
+                if (userId) {
+                    document.getElementById('searchingPopup').style.display = 'block';
+                    socket.emit('quickMatch', { gameType: 'lightbikes', userId });
+                } else {
+                    alert('User ID not found, please login.');
+                }
+            });
+                
+            // When a match is found
+            socket.on('matchFound', ({ gameId }) => {
+                console.log('Match found with gameId:', gameId); // Debug log
+                currentGameId = gameId;
+                document.getElementById('searchingPopup').style.display = 'none';
+                document.getElementById('gameBoard').style.display = 'block';
+                socket.emit('joinGame', { gameId: currentGameId });
+            });
+
+            // Event listener for New Game button
+            document.getElementById('newGameButton').addEventListener('click', () => {
+                socket.emit('createGame', { gameType: 'lightbikes' });
+            });
+    
+            // Event listener for Join Game button
+            document.getElementById('joinGameButton').addEventListener('click', () => {
+                const gameCode = document.getElementById('gameCodeInput').value;
+                socket.emit('joinGame', { gameId: gameCode });
+            });
+    
+            // Event listener for Cancel Search button
+            document.getElementById('cancelSearchButton').addEventListener('click', () => {
+                document.getElementById('searchingPopup').style.display = 'none';
+                socket.emit('cancelQuickMatch', { playerId: userId });
+            });
+    
+            // Handle game state updates
+            socket.on('gameState', (gameState) => {
+                console.log('Client received gameState:', gameState);  // Log the game state received from the server
+                drawGameState(gameState);
+            });
+    
+            // Drawing the game state on the canvas
+            function drawGameState(state) {
+                const canvas = document.getElementById('lightbikesCanvas');
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                for (const playerId in state.playerPositions) {
+                    const { x, y, color, trail } = state.playerPositions[playerId];
+                    ctx.fillStyle = color || 'blue';
+                    ctx.fillRect(x * 5, y * 5, 5, 5);  // Draw player
+
+                    // Draw trails
+                    trail.forEach(({ x: trailX, y: trailY }) => {
+                        ctx.fillRect(trailX * 5, trailY * 5, 5, 5);
+                    });
+                }
+            }
+
+    
+            // Handle player movement via arrow keys
+            document.addEventListener('keydown', (event) => {
+                const canvas = document.getElementById('lightbikesCanvas');
+                if (document.activeElement !== canvas) {
+                    canvas.focus(); // Ensure canvas stays focused for capturing key events
+                }
+                
+                console.log("Key pressed:", event.key); // Log key detection
+                let direction = null;
+
+                if (event.key === 'ArrowUp' || event.key === 'w') direction = 'up';
+                if (event.key === 'ArrowDown' || event.key === 's') direction = 'down';
+                if (event.key === 'ArrowLeft' || event.key === 'a') direction = 'left';
+                if (event.key === 'ArrowRight' || event.key === 'd') direction = 'right';
+
+                if (direction) {
+                    console.log(`Steering ${direction}`);  // Log direction
+                    socket.emit('steer', { gameId: currentGameId, direction });
+                }
+            });
+        });
+
+    </script>
+    
+
+    <!-- Load the navigation bar from a separate HTML file -->
+    <script>
+        fetch('navbar.html')
+            .then(response => response.text())
+            .then(data => document.getElementById('navbar').innerHTML = data);
+    </script>
+</body>
+</html>

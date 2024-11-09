@@ -103,16 +103,6 @@ const findTicTacToeMatch = (io, playerId, connectedPlayers) => {
     }
 };
 
-
-const findWordleMatch = (userId) => {
-    if (wordleQueue.length > 0) {
-        return wordleQueue.shift();  // Pair with a waiting player
-    } else {
-        wordleQueue.push(userId);  // Add player to queue
-        return null;
-    }
-};
-
 // Create a new game session
 const createGameSession = (gameType) => {
     const gameId = Math.random().toString(36).substr(2, 9);  // Random game ID
@@ -120,6 +110,7 @@ const createGameSession = (gameType) => {
     games[gameId] = game.initializeGameState();
     return gameId;
 };
+
 
 
 module.exports = {

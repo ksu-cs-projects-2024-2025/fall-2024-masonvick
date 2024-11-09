@@ -5,6 +5,9 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 
+// using ip address instead of domain name for db connection
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 //google login
 const passport = require('passport');
 const GOOGLE_CLIENT_ID = '1057299967062-eio17t4tmo4nmbm7pfaakfehcli75flk.apps.googleusercontent.com';
@@ -36,26 +39,20 @@ app.use(express.urlencoded({ extended: true }));  // To parse URL-encoded bodies
 console.log('Initializing Tic-Tac-Toe Router...');
 const ticTacToeRouter = require('./routes/tictactoe')(io);
 console.log('Tic-Tac-Toe Router Initialized');
-/*
-console.log('Initializing Battleship Router...');
-const battleshipRouter = require('./routes/battleship')(io);
-console.log('Battleship Router Initialized');
 
 console.log('Initializing Lightbikes Router...');
 const lightbikesRouter = require('./routes/lightbikes')(io);
 console.log('Lightbikes Router Initialized');
-*/
 
 // game routers (middleware registration)
 app.use('/tic-tac-toe', ticTacToeRouter);  // Tic-Tac-Toe
-//app.use('/battleship', battleshipRouter);  // Battleship (empty for now)
-//app.use('/lightbikes', lightbikesRouter);  // Lightbikes
-
+app.use('/lightbikes', lightbikesRouter);  // Lightbikes
 
 /////////////////////////////database stuff
 const sql = require('mssql');
 
 // Configuration object for SQL Server connection
+/*
 const dbConfig = {
     user: 'sa',         // Your SQL Server username
     password: 'pw',     // Your SQL Server password
@@ -64,6 +61,19 @@ const dbConfig = {
     options: {
         encrypt: true,            // Required if you're using Azure
         trustServerCertificate: true // Use this for self-signed certificates or localhost
+    }
+};
+*/
+
+// Configuration object for SQL Server connection
+const dbConfig = {
+    user: 'DGUser',         // Your SQL Server username
+    password: 'J4v!wD8#tA8n4$',     // Your SQL Server password
+    server: '162.214.201.153',          // Your SQL Server instance
+    database: 'DuelGames',          // The database you created
+    options: {
+        encrypt: false,            // Required if you're using Azure
+        trustServerCertificate: false // Use this for self-signed certificates or localhost
     }
 };
 
