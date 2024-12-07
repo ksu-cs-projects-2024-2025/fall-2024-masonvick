@@ -52,7 +52,7 @@ app.use('/lightbikes', lightbikesRouter);  // Lightbikes
 const sql = require('mssql');
 
 // Configuration object for SQL Server connection
-/*
+///*
 const dbConfig = {
     user: 'sa',         // Your SQL Server username
     password: 'pw',     // Your SQL Server password
@@ -63,9 +63,10 @@ const dbConfig = {
         trustServerCertificate: true // Use this for self-signed certificates or localhost
     }
 };
-*/
+//*/
 
 // Configuration object for SQL Server connection
+/*
 const dbConfig = {
     user: 'DGUser',         // Your SQL Server username
     password: 'J4v!wD8#tA8n4$',     // Your SQL Server password
@@ -76,6 +77,7 @@ const dbConfig = {
         trustServerCertificate: false // Use this for self-signed certificates or localhost
     }
 };
+*/
 
 // Function to connect to the SQL Server database
 async function connectToDatabase() {
@@ -107,13 +109,13 @@ passport.use(new GoogleStrategy({
 
 // Serialize the user ID to store in the session
 passport.serializeUser((user, done) => {
-    console.log('Serializing user:', user.Id);  // Log user ID
+    //console.log('Serializing user:', user.Id);  // Log user ID
     done(null, user.Id);  // Store the user ID in the session
 });
 
 // Deserialize the user by finding them in the database using the user ID
 passport.deserializeUser(async (id, done) => {
-    console.log('Deserializing user with ID:', id);
+    //console.log('Deserializing user with ID:', id);
     try {
         const result = await sql.query`SELECT * FROM Users WHERE Id = ${id}`;
         if (result.recordset.length === 0) {
@@ -131,6 +133,11 @@ app.use(session({
     secret: 'your-session-secret',
     resave: false,
     saveUninitialized: true,
+    cookie: {
+        httpOnly: true,      // Prevent JavaScript access to the cookie
+        secure: false,       // Use true if using HTTPS
+        maxAge: 24 * 60 * 60 * 1000 // 1 day session lifetime
+    }
 }));
 
 // Initialize Passport.js
@@ -180,6 +187,21 @@ app.get('/api/user', (req, res) => {
     } else {
         // If the user is not authenticated, return an error
         return res.status(401).json({ message: 'User not authenticated' });
+    }
+});
+
+//api endpoint to verify if the user is logged in
+app.get('/api/session', (req, res) => {
+    if (req.isAuthenticated()) { // This assumes you're using a library like Passport.js
+        res.json({
+            isAuthenticated: true,
+            userId: req.user.Id,      // Replace with your user object property
+            username: req.user.Username // Replace with your user object property
+        });
+    } else {
+        res.json({
+            isAuthenticated: false
+        });
     }
 });
 
@@ -387,7 +409,26 @@ app.get('/leaderboard/:game', async (req, res) => {
     }
 });
 
+app.get('/api/user-stats', async (req, res) => {
+    if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: 'User not authenticated' });
+    }
 
+    try {
+        const userId = req.user.Id;
+        const stats = await sql.query`
+            SELECT 
+                (SELECT COUNT(*) FROM TicTacToeGames WHERE WinnerId = ${userId}) AS TicTacToeWins,
+                (SELECT COUNT(*) FROM TicTacToeGames WHERE (Player1Id = ${userId} OR Player2Id = ${userId}) AND WinnerId != ${userId}) AS TicTacToeLosses,
+                (SELECT COUNT(*) FROM LightbikesGames WHERE WinnerId = ${userId}) AS LightbikesWins,
+                (SELECT COUNT(*) FROM LightbikesGames WHERE (Player1Id = ${userId} OR Player2Id = ${userId}) AND WinnerId != ${userId}) AS LightbikesLosses
+        `;
+        res.json(stats.recordset[0]);
+    } catch (err) {
+        console.error('Error fetching user stats:', err);
+        res.status(500).json({ error: 'Failed to retrieve stats' });
+    }
+});
 
 app.use(function(err, req, res, next) {
     console.error(err.stack);

@@ -6,17 +6,42 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>navbar</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="styles/navbarStyles.css">
 </head>
 <body>
     <div class="navbar">
+        <img src="styles/dgLogo.png" alt="Logo" class="navbar-logo">
         <div class="navbar-content">
             <a href='index.html'>Home</a>
             <a href='account.html'>Account</a>
             <a href="play.html">Play</a>
             <a href="leaderboard.html">Leaderboard</a>
             <a href="settings.html">Settings</a>
+            <div id="loginIndicator" class="login-indicator"></div>
         </div>
     </div>
+
+    <script src="authCheck.js"></script>
+
+    <script>
+        // Check session and update login indicator
+        fetch('/api/session', { credentials: 'include' })
+            .then(response => response.json())
+            .then(data => {
+                const loginIndicator = document.getElementById('loginIndicator');
+                if (data.isAuthenticated) {
+                    loginIndicator.textContent = `Logged in as ${data.username}`;
+                    loginIndicator.style.color = "green";
+                } else {
+                    loginIndicator.textContent = 'Not logged in';
+                    loginIndicator.style.color = "red";
+                }
+            })
+            .catch(error => {
+                console.error('Error checking session:', error);
+                document.getElementById('loginIndicator').textContent = 'Error checking session';
+            });
+    </script>
+
 </body>
 </html>

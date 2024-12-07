@@ -1,0 +1,31 @@
+sequenceDiagram
+    participant U as User
+    participant FE as Frontend
+    participant S as Server
+    participant B as Bcrypt
+    participant DB as SQL Server
+
+    U->>FE: Click "Register" tab
+    U->>FE: Fill registration form (username, email, password)
+    U->>FE: Click "Register" button
+
+    FE->>S: POST /register {username, email, password}
+
+    S->>DB: Query check if username/email exists
+    DB-->>S: User exists/not exists
+
+    alt Username/Email already exists
+        S-->>FE: Status 400 - Username/Email taken
+        FE-->>U: Display error message
+    else Username/Email available
+        S->>B: hash(password, saltRounds)
+        B-->>S: Return hashedPassword
+
+        S->>DB: INSERT INTO Users (Username, Email, Password, CreatedAt, Name, GoogleId)
+        Note over DB: Name & GoogleId set to NULL
+        DB-->>S: Insert successful
+
+        S-->>FE: Status 200 - Registration successful
+        FE-->>U: Display success message
+        FE->>FE: Switch to Login tab
+    end

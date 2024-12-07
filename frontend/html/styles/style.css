@@ -1,7 +1,7 @@
 /* Global Styles */
 body {
     font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
+    background-color: #e2dddd;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -21,122 +21,6 @@ button {
 
 button:hover {
     background-color: #555;
-}
-
-/* Navbar Styles */
-.navbar {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    background-color: #333;
-    padding: 10px;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    z-index: 1000;
-    box-sizing: border-box;
-}
-
-.navbar-content {
-    display: flex;
-    align-items: center;
-}
-
-.navbar a {
-    background-color: #555;
-    color: #fff;
-    border: none;
-    padding: 10px 20px;
-    cursor: pointer;
-}
-
-.navbar a:hover {
-    background-color: #777;
-}
-
-/*@@@@@@@@@@@@ Account Page Styles @@@@@@@@@@@@@@@*/
-.login-container {
-    width: 350px;
-    margin: 100px auto;
-    padding: 20px;
-    background-color: #f5f5f5;
-    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-    border-radius: 10px;
-    position: relative;
-}
-
-/* Styling the tabs */
-.tab {
-    display: flex;
-    justify-content: center;
-}
-
-.tab button {
-    background-color: #ccc;
-    border: none;
-    padding: 10px 20px;
-    cursor: pointer;
-    outline: none;
-    font-weight: bold;
-    border-radius: 10px 10px 0 0;
-}
-
-.tab button.active {
-    background-color: #333;
-    color: white;
-}
-
-/* Content of each tab */
-.tabcontent {
-    display: none;
-    padding: 20px;
-    border: 1px solid #ccc;
-    border-radius: 0 0 10px 10px;
-}
-
-.tabcontent.active {
-    display: block;
-}
-
-/* Form elements */
-form label {
-    display: block;
-    margin: 10px 0 5px;
-    font-weight: bold;
-}
-
-form input {
-    width: 100%;
-    padding: 8px;
-    margin-bottom: 10px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-}
-
-form button {
-    width: 100%;
-    padding: 10px;
-    background-color: #333;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-form a {
-    text-align: center;
-    display: block;
-    margin-top: 10px;
-    color: white;
-    background-color: #e74c3c;
-    padding: 10px;
-    border-radius: 5px;
-    text-decoration: none;
-}
-
-form a:hover {
-    background-color: #c0392b;
 }
 
 /* Message Styles */
@@ -178,141 +62,32 @@ form + .message-success {
     margin-top: 20px;
 }
 
-/*@@@@@@@@@@@@ End of Account Page Styles @@@@@@@@@@@@@@@*/
-
-/* @@@@@@@@@@@Leaderboard Styles @@@@@@@@@@@@@*/
-h1 {
-    text-align: center;
-    margin-top: 20px;
-    color: #333;
-    font-size: 28px;
-}
-
-label {
-    font-size: 18px;
-    margin-right: 10px;
-}
-
-select {
-    padding: 10px;
-    font-size: 16px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    outline: none;
-    margin-bottom: 20px;
-}
-
-table {
-    width: 80%;
-    max-width: 1000px;
-    margin: 20px auto;
-    border-collapse: collapse;
-    background-color: white;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-table th, table td {
-    padding: 12px 15px;
-    border: 1px solid #ddd;
-    text-align: center;
-    font-size: 16px;
-}
-
-thead th {
-    background-color: #4CAF50;
-    color: white;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-}
-
-tbody tr:nth-child(even) {
-    background-color: #f9f9f9;
-}
-
-tbody tr:hover {
-    background-color: #f1f1f1;
-}
-
-tbody td {
-    font-size: 14px;
-}
-
-@media (max-width: 768px) {
-    table {
-        width: 100%;
-    }
-
-    table, thead, tbody, th, td, tr {
-        display: block;
-    }
-
-    tbody tr {
-        margin-bottom: 20px;
-    }
-
-    tbody td {
-        text-align: right;
-        padding-left: 50%;
-        position: relative;
-    }
-
-    tbody td:before {
-        content: attr(data-label);
-        position: absolute;
-        left: 10px;
-        font-weight: bold;
-        text-transform: uppercase;
-    }
-}
-
-/* @@@@@@@@@@@End Of Leaderboard Styles @@@@@@@@@@@@@*/
-
-/* Game Board Styles */
-#gameBoard {
+/* Popup for Searching Player */
+#searchingPopup {
     display: none;
-    justify-content: center;
-    align-items: center;
-    margin: 20px;
-}
-
-#lightbikesCanvas {
-    border: 2px solid black;
-    background-color: #eee;
-}
-
-
-
-
-/* Wordle Styles */
-
-body {
-    font-family: Arial, sans-serif;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
     text-align: center;
+    z-index: 1000;
 }
 
-#gameContainer {
-    display: flex;
-    justify-content: space-around;
-    margin-top: 20px;
+#cancelSearchButton {
+    margin-top: 15px;
+    padding: 10px 20px;
+    background-color: #555;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
 }
 
-.board {
-    display: grid;
-    grid-template-columns: repeat(5, 40px);
-    gap: 5px;
+#cancelSearchButton:hover {
+    background-color: #777;
 }
 
-.opponent-view .cell {
-    background-color: lightgray;
-}
-
-.cell {
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid #333;
-    font-size: 1.5em;
-    text-transform: uppercase;
-}

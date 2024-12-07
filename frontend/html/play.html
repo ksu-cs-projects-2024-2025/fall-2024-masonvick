@@ -4,14 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
-    <link rel ="stylesheet" href="style.css" >
+    <link rel ="stylesheet" href="styles/style.css" >
+    <link rel ="stylesheet" href="styles/playStyles.css" >
 </head>
 
 <script>
     // Load the navigation bar from a separate HTML file
     fetch('navbar.html')
         .then(response => response.text())
-        .then(data => document.getElementById('navbar').innerHTML = data);
+        .then(data => {
+            document.getElementById('navbar').innerHTML = data;
+
+            // Re-execute session checking after navbar is loaded
+            fetch('/api/session', { credentials: 'include' })
+                .then(response => response.json())
+                .then(data => {
+                    const loginIndicator = document.getElementById('loginIndicator');
+                    if (data.isAuthenticated) {
+                        loginIndicator.textContent = `Logged in as ${data.username}`;
+                        loginIndicator.style.color = "green";
+                    } else {
+                        loginIndicator.textContent = 'Not logged in';
+                        loginIndicator.style.color = "red";
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking session:', error);
+                    document.getElementById('loginIndicator').textContent = 'Error checking session';
+                });
+        });
+
 </script>
 
 <body>
@@ -24,8 +46,8 @@
         <!-- Main page content goes here -->
         <h1>Games</h1>
         <!-- login -->
-         <form action="chess.html">
-            <button type="submit" class="button">Chess</button>
+         <form action="lightbikes.html">
+            <button type="submit" class="button">Lightbikes</button>
          </form>
          <form action="tictactoe.html">
             <button type="submit" class="button">Tic Tac Toe</button>

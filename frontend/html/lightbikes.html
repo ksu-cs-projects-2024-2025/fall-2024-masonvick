@@ -6,29 +6,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lightbikes</title>
-    <link rel="stylesheet" href="style.css?v=1.0"> <!-- Use the updated style.css -->
+    <link rel="stylesheet" href="styles/style.css?v=1.0">
+    <link rel="stylesheet" href="styles/lightbikesStyles.css">
 </head>
 <body>
     <div id="navbar"></div>
-    <h1>Lightbikes</h1>
-    <div id="gameOptions">
-        <button id="newGameButton">Create New Game</button>
-        <input type="text" id="gameCodeInput" placeholder="Enter Game Code">
-        <button id="newGameButton">New Game</button>
-        <button id="joinGameButton">Join Game</button>
-        <button id="quickMatchButton">Quick Match</button>
-        <button id="rankedMatchButton">Ranked Match</button>
-    </div>
+    <div id="content">
+        <h1 id="gameTitle">Lightbikes</h1>
+        <div id="gameMessage" style="display: none; margin-top: 10px; color: green; font-weight: bold;"></div>
+        <div id="gameOptions">
+            <button id="newGameButton">Create New Game</button>
+            <input type="text" id="gameCodeInput" placeholder="Enter Game Code">
+            <button id="joinGameButton">Join Game</button>
+            <button id="quickMatchButton">Quick Match</button>
+            <button id="rankedMatchButton">Ranked Match</button>
+        </div>
 
-    <div id="gameBoard">
-        <canvas id="lightbikesCanvas" width="500" height="500"></canvas>
-    </div>
+        <div id="gameBoard">
+            <canvas id="lightbikesCanvas" width="500" height="500"></canvas>
+        </div>
 
-    <div id="searchingPopup">
-        <p id="searchingText">Searching for player...</p>
-        <button id="cancelSearchButton">Cancel</button>
-    </div>
+        <div id="searchingPopup">
+            <p id="searchingText">Searching for player...</p>
+            <button id="cancelSearchButton">Cancel</button>
+        </div>
 
+    </div>  
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
@@ -72,6 +75,11 @@
                 }
             });
                 
+            document.getElementById('rankedMatchButton').addEventListener('click', () => {
+                document.getElementById('searchingPopup').style.display = 'block';
+                socket.emit('rankedMatch', { gameType: 'lightbikes', userId: userId });
+            });
+
             // When a match is found
             socket.on('matchFound', ({ gameId }) => {
                 console.log('Match found with gameId:', gameId); // Debug log
@@ -81,23 +89,6 @@
                 socket.emit('joinGame', { gameId: currentGameId });
             });
 
-            // Event listener for New Game button
-            document.getElementById('newGameButton').addEventListener('click', () => {
-                socket.emit('createGame', { gameType: 'lightbikes' });
-            });
-    
-            // Event listener for Join Game button
-            document.getElementById('joinGameButton').addEventListener('click', () => {
-                const gameCode = document.getElementById('gameCodeInput').value;
-                socket.emit('joinGame', { gameId: gameCode });
-            });
-    
-            // Event listener for Cancel Search button
-            document.getElementById('cancelSearchButton').addEventListener('click', () => {
-                document.getElementById('searchingPopup').style.display = 'none';
-                socket.emit('cancelQuickMatch', { playerId: userId });
-            });
-    
             // Handle game state updates
             socket.on('gameState', (gameState) => {
                 console.log('Client received gameState:', gameState);  // Log the game state received from the server
@@ -143,8 +134,37 @@
                     socket.emit('steer', { gameId: currentGameId, direction });
                 }
             });
-        });
 
+            window.addEventListener('beforeunload', function(e) {
+                if (socket) {
+                    socket.emit('leavePage');
+                }
+            });
+
+            document.getElementById('newGameButton').addEventListener('click', () => {
+                if (userId) {
+                    socket.emit('createNewGame', { gameType: 'lightbikes', userId });
+                } else {
+                    alert('You need to be logged in to create a game.');
+                }
+            });
+
+            document.getElementById('joinGameButton').addEventListener('click', () => {
+                const gameCode = document.getElementById('gameCodeInput').value;
+                if (userId && gameCode) {
+                    socket.emit('joinGameByCode', { gameId: gameCode, userId });
+                } else {
+                    alert('You need to enter a game code and be logged in.');
+                }
+            });
+
+            // Handle game creation response
+            socket.on('gameCreated', ({ gameId }) => {
+                const gameMessageElement = document.getElementById('gameMessage');
+                gameMessageElement.textContent = `Game created! Share this code with your friend: ${gameId}`;
+                gameMessageElement.style.display = 'block';
+            });
+        });
     </script>
     
 
@@ -152,7 +172,27 @@
     <script>
         fetch('navbar.html')
             .then(response => response.text())
-            .then(data => document.getElementById('navbar').innerHTML = data);
+            .then(data => {
+                document.getElementById('navbar').innerHTML = data;
+
+                // Re-execute session checking after navbar is loaded
+                fetch('/api/session', { credentials: 'include' })
+                    .then(response => response.json())
+                    .then(data => {
+                        const loginIndicator = document.getElementById('loginIndicator');
+                        if (data.isAuthenticated) {
+                            loginIndicator.textContent = `Logged in as ${data.username}`;
+                            loginIndicator.style.color = "green";
+                        } else {
+                            loginIndicator.textContent = 'Not logged in';
+                            loginIndicator.style.color = "red";
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking session:', error);
+                        document.getElementById('loginIndicator').textContent = 'Error checking session';
+                    });
+            });
     </script>
 </body>
 </html>

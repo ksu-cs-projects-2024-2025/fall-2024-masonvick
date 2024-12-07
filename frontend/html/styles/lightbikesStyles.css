@@ -1,24 +1,21 @@
-/* Tic Tac Toe Board Styles */
-#board {
-    display: grid;
-    grid-template-columns: repeat(3, 100px);
-    grid-template-rows: repeat(3, 100px);
-    gap: 5px;
+/* Game Board Styles */
+#gameBoard {
+    display: flex; /* or display: block; either is fine */
     justify-content: center;
-    margin: 50px auto;
+    align-items: center;
+    margin: 20px auto;
 }
 
-.cell {
-    width: 100px;
-    height: 100px;
+#lightbikesCanvas {
+    border: 2px solid black;
+    background-color: #eee;
+}
+
+#gameOptions {
     display: flex;
-    align-items: center;
     justify-content: center;
-    font-size: 2em;
-    border: 1px solid #000;
-    cursor: pointer;
-    background-color: #f9f9f9;
-    color: black;
+    gap: 10px;
+    margin: 20px 0;
 }
 
 /* Centered title */
@@ -30,6 +27,14 @@
     color: #333;
 }
 
+#content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 20px auto;
+    max-width: 600px;
+    text-align: center;
+}
 
 /* Styling the input field */
 #gameCodeInput {
@@ -59,6 +64,14 @@
     cursor: pointer;
     background-color: #f9f9f9;
     color: black;
+}
+
+#gameTitle {
+    text-align: center;
+    margin: 20px 0;
+    font-size: 2.5em;
+    font-weight: bold;
+    color: #333;
 }
 
 /* Add spacing and padding for better visuals */

@@ -5,28 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
 
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="styles/style.css">
 </head>
-
-<script>
-    // Load the navigation bar from a separate HTML file
-    fetch('navbar.html')
-        .then(response => response.text())
-        .then(data => document.getElementById('navbar').innerHTML = data);
-</script>
-
-
 
 <body>
     <!-- Placeholder for the navigation bar -->
     <div id="navbar"></div>
 
-    <!-- Content that changes -->
-    <div id="content">
-        <!-- Main page content goes here -->
+    <!-- Page Content -->
+    <header>
         <h1>Welcome to the Main Page</h1>
-        <!-- login -->
-    </div>
+    </header>
+
+
+
+    <script>
+        // Load the navigation bar from a separate HTML file
+        fetch('navbar.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('navbar').innerHTML = data;
+
+                // Re-execute session checking after navbar is loaded
+                fetch('/api/session', { credentials: 'include' })
+                    .then(response => response.json())
+                    .then(data => {
+                        const loginIndicator = document.getElementById('loginIndicator');
+                        if (data.isAuthenticated) {
+                            loginIndicator.textContent = `Logged in as ${data.username}`;
+                            loginIndicator.style.color = "green";
+                        } else {
+                            loginIndicator.textContent = 'Not logged in';
+                            loginIndicator.style.color = "red";
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking session:', error);
+                        document.getElementById('loginIndicator').textContent = 'Error checking session';
+                    });
+            });
+    </script>
+
 
 </body>
 </html>

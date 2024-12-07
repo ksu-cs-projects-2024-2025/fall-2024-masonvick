@@ -1,0 +1,57 @@
+Mermaid code for the database design
+
+erDiagram
+    Users ||--o{ TicTacToeGames : "plays"
+    Users ||--o{ LightbikesGames : "plays"
+    Users ||--o{ yGames : "plays"
+    Users ||--o{ xGames : "plays"
+
+    Users {
+        int Id PK
+        string Username
+        string Email
+        string Password
+        string GoogleId
+        string Name
+        datetime CreatedAt
+    }
+
+    TicTacToeGames {
+        int GameId PK
+        int Player1Id FK
+        int Player2Id FK
+        int WinnerId FK
+        string Moves
+        datetime StartTime
+        datetime EndTime
+    }
+
+    LightbikesGames {
+        int GameId PK
+        int Player1Id FK
+        int Player2Id FK
+        int WinnerId FK
+        string Player1Steers
+        string Player2Steers
+        int PlayerTrailLength
+        datetime StartTime
+        datetime EndTime
+    }
+
+    yGames {
+        int GameId PK
+        int Player1Id FK
+        int Player2Id FK
+        int WinnerId FK
+        datetime StartTime
+        datetime EndTime
+    }
+
+    xGames {
+        int GameId PK
+        int Player1Id FK
+        int Player2Id FK
+        int WinnerId FK
+        datetime StartTime
+        datetime EndTime
+    }

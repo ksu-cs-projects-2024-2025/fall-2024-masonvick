@@ -1,0 +1,97 @@
+classDiagram
+    direction LR
+
+    class Server {
+        -express: Express
+        -io: SocketIO.Server
+        -sql: SQLConnection
+        +initializeRoutes()
+        +startServer()
+    }
+
+    class Frontend {
+        +gameBoard: Element
+        +messageDisplay: Element
+        +handleGameEvents()
+        +updateUI()
+    }
+
+    class GameRouter {
+        +handleSocketEvents()
+        +handlePlayerLeave()
+    }
+
+    class GameController {
+        -connectedPlayers: Object
+        +findMatch(io, socket, gameType, userId)
+        +handleMove(io, socket, data)
+        +startGame(io, gameId)
+        +emitGameState(io, gameId)
+        +forfeitGame(io, userId)
+    }
+
+    class MatchmakingManager {
+        -games: Object
+        -waitingPlayers: Object
+        +createGameSession(gameType)
+        +findMatch(gameType, playerId)
+        +joinGame(gameId, playerId)
+        +removePlayerFromQueue(playerId)
+    }
+
+    class GameFactory {
+        +createGame(gameType)
+    }
+    class Game {
+        +players: Array
+        +currentPlayer: String
+        +startTime: Date
+        +getGameState()
+    }
+
+    class Database {
+        +Users: Table
+        +Games: Table
+        +GameStats: Table
+    }
+
+    class User {
+        +Id: Number
+        +Username: String
+        +Email: String
+        +Password: String
+        +GoogleId: String
+        +Name: String
+        +CreatedAt: Date
+    }
+
+    %%class TicTacToeGame {
+    %%    +currentPlayer: String
+    %%    +winner: String
+    %%    +startTime: Date
+    %%    +getGameState()
+    %%}
+
+    %%class LightbikesGame {
+    %%    +players: Array
+    %%    +gameState: Object
+    %%    +startTime: Date
+    %%    +initializeGameState()
+    %%}
+
+    Frontend --> GameRouter
+    Server --> Database
+    Server --> GameRouter
+    GameRouter --> GameController
+    GameController --> MatchmakingManager
+    MatchmakingManager --> GameFactory
+    GameFactory --> Game
+    Database --> User
+    Server --> MatchmakingManager
+    %%GameFactory --> TicTacToeGame
+    %%GameFactory --> LightbikesGame
+
+
+
+
+

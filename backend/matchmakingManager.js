@@ -5,6 +5,11 @@ const { createGame } = require('./gameFactory');
 const games = {};
 const waitingPlayers = {};
 
+const waitingRankedPlayers = {
+    'tic-tac-toe': [],
+    'lightbikes': []
+};
+
 const generateGameId = () => Math.random().toString(36).substr(2, 9);
 
 
@@ -13,9 +18,45 @@ const joinGame = (gameId, playerId) => {
     const game = games[gameId];
     if (game && game.players.length < 2) {
         game.players.push(playerId);
-        return true;
+
+        // Initialize player symbols if not already assigned
+        if (!game.playerSymbols[game.players[0]]) {
+            game.playerSymbols[game.players[0]] = 'X';
+        }
+        if (!game.playerSymbols[game.players[1]]) {
+            game.playerSymbols[game.players[1]] = 'O';
+        }
+
+        console.log(`Player ${playerId} joined game ${gameId}. Players: ${game.players}`);
+        return game;
     }
-    return false;
+    console.error(`Failed to join game ${gameId}. Either it doesn't exist or it's full.`);
+    return null;
+};
+
+const joinLightbikesGame = (gameId, playerId) => {
+    const game = games[gameId];
+    if (game && game.players.length < 2) {
+        game.players.push(playerId);
+
+        console.log(`Player ${playerId} joined Lightbikes game ${gameId}. Players: ${game.players}`);
+
+        // Initialize player positions if not already set
+        if (!game.gameState.playerPositions[playerId]) {
+            game.gameState.playerPositions[playerId] = {
+                x: Math.floor(Math.random() * 100), // Random starting x-coordinate
+                y: Math.floor(Math.random() * 100), // Random starting y-coordinate
+                direction: 'up',                    // Default direction
+                trail: [],                          // Empty trail
+                trailLength: 0,                     // Start with no trail
+                steers: []                          // Initialize steers array
+            };
+        }
+
+        return game;
+    }
+    console.error(`Failed to join Lightbikes game ${gameId}. Either it doesn't exist or it's full.`);
+    return null;
 };
 
 
@@ -32,27 +73,26 @@ const findLightbikesMatch = (io, playerId, connectedPlayers) => {
     if (waitingPlayers['lightbikes'].length > 1) {
         console.log(`Found player for the game`);
 
-        // Create the game and remove the first `playerLimit` players from the queue
+        // Create the game and remove the first two players from the queue
         const gameId = generateGameId();
         const game = createGame('lightbikes');
-        game.players = [];
 
-        while (waitingPlayers['lightbikes'].length > 0) {
-            const player = waitingPlayers['lightbikes'].shift();
-            game.players.push(player);
-        }
+        // Take first two players from queue
+        const player1 = waitingPlayers['lightbikes'].shift();
+        const player2 = waitingPlayers['lightbikes'].shift();
+        game.players = [player1, player2];
 
         games[gameId] = game;
 
-        // Notify all players that the match is found and ready
-        game.players.forEach(playerId => {
-            const playerSocket = connectedPlayers[playerId];
-            if (playerSocket) {
-                io.of('/lightbikes').to(playerSocket).emit('matchFound', { gameId, players: game.players });
-            }
-        });
+        // Initialize the game state right away
+        game.gameState = game.initializeGameState();
+        game.gameState.playerPositions = {};  // Ensure this is initialized
 
-        return { gameId, players: game.players };
+        // Return the game info - actual notification will happen in findMatch
+        return { 
+            gameId, 
+            players: game.players 
+        };
     } else {
         console.log(`Not enough players yet. Player ${playerId} added to the queue.`);
         return null;
@@ -85,12 +125,7 @@ const findTicTacToeMatch = (io, playerId, connectedPlayers) => {
         const opponentSocket = connectedPlayers[opponent]; // Use connectedPlayers
 
         if (playerSocket && opponentSocket) {
-            console.log(`Emitting matchFound to player ${playerId} and opponent ${opponent}`);
-
-            // Emit match found events to both players using their socket IDs
-            io.of('/tic-tac-toe').to(playerSocket).emit('matchFound', { gameId, opponent });
-            io.of('/tic-tac-toe').to(opponentSocket).emit('matchFound', { gameId, opponent: playerId });
-
+            console.log(`returning from findTicTacToeMatch to player ${playerId} and opponent ${opponent}`);
             return { gameId, opponent };
         } else {
             console.error('Socket ID missing for one or both players:', { playerSocket, opponentSocket });
@@ -103,20 +138,123 @@ const findTicTacToeMatch = (io, playerId, connectedPlayers) => {
     }
 };
 
+function findRankedMatch(gameType, playerId, playerRating, connectedPlayers) {
+    console.log(`Looking for a ranked ${gameType} match for player ${playerId} with rating ${playerRating}`);
+
+    // Ensure we have a queue array for this game type
+    if (!waitingRankedPlayers[gameType]) {
+        waitingRankedPlayers[gameType] = [];
+    }
+
+    // Add the player to the ranked waiting queue
+    waitingRankedPlayers[gameType].push({
+        userId: playerId,
+        skillRating: playerRating,
+        timestamp: Date.now()
+    });
+
+    // Sort players by skill rating (ascending)
+    waitingRankedPlayers[gameType].sort((a, b) => a.skillRating - b.skillRating);
+
+    // Find the index of the current player in the queue
+    const playerIndex = waitingRankedPlayers[gameType].findIndex(p => p.userId === playerId);
+
+    let bestMatch = null;
+    let bestDifference = Infinity;
+
+    // Attempt to find the closest skill-rated match
+    for (let i = 0; i < waitingRankedPlayers[gameType].length; i++) {
+        if (i === playerIndex) continue; // Skip the player themselves
+
+        const other = waitingRankedPlayers[gameType][i];
+        const diff = Math.abs(other.skillRating - playerRating);
+
+        if (diff < bestDifference) {
+            bestDifference = diff;
+            bestMatch = other;
+        }
+    }
+
+    if (bestMatch) {
+        // Found a suitable match
+        // Remove both players from the queue
+        waitingRankedPlayers[gameType] = waitingRankedPlayers[gameType].filter(p =>
+            p.userId !== playerId && p.userId !== bestMatch.userId
+        );
+
+        // Create a game session
+        const gameId = generateGameId();
+        const game = createGame(gameType);
+        game.players = [playerId, bestMatch.userId];
+        games[gameId] = game;
+
+        console.log(`Ranked match found: ${playerId} vs ${bestMatch.userId} in ${gameType}, gameId: ${gameId}`);
+        return { gameId, players: game.players };
+    } else {
+        // No suitable close match found yet
+        // Check if only 2 players are in the queue. If so, force a match.
+        if (waitingRankedPlayers[gameType].length === 2) {
+            const [p1, p2] = waitingRankedPlayers[gameType];
+            if (p1 && p2) {
+                // Force these two players to match
+                waitingRankedPlayers[gameType] = [];
+
+                const gameId = generateGameId();
+                const game = createGame(gameType);
+                game.players = [p1.userId, p2.userId];
+                games[gameId] = game;
+
+                console.log(`Forced ranked match due to only two players waiting: ${p1.userId} vs ${p2.userId}, gameId: ${gameId}`);
+                return { gameId, players: game.players };
+            }
+        }
+
+        // If no match found and not forced, return null
+        // The caller (controller) should check if this returned null.
+        return null;
+    }
+}
+
+
 // Create a new game session
-const createGameSession = (gameType) => {
-    const gameId = Math.random().toString(36).substr(2, 9);  // Random game ID
-    const game = createGame(gameType);
-    games[gameId] = game.initializeGameState();
+const createGameSession = (gameType, playerId) => {
+    const gameId = generateGameId(); // Generate unique game ID
+    const game = createGame(gameType); // Create a new game instance
+    game.players = []; // Ensure players array is initialized
+    game.players.push(playerId); // Add the creating player
+    game.gameState = game.initializeGameState(); // Initialize the game state immediately
+    games[gameId] = game; // Store the entire game instance
+    console.log(`Game session created with ID: ${gameId} by player ${playerId}`);
     return gameId;
 };
 
 
+const removePlayerFromQueue = (playerId) => {
+    Object.keys(waitingPlayers).forEach(gameType => {
+        waitingPlayers[gameType] = waitingPlayers[gameType].filter(id => id !== playerId);
+    });
+    console.log(`Player ${playerId} removed from all queues.`);
+};
+
+// This function searches for a game that contains the specified playerId
+function findGameByPlayerId(playerId) {
+    for (const gameId in games) {
+        const game = games[gameId];
+        if (game.players.includes(playerId)) {
+            return game;
+        }
+    }
+    return null; // Return null if no game contains the playerId
+}
 
 module.exports = {
     createGameSession,
     findLightbikesMatch,
     joinGame,
+    joinLightbikesGame,
     findTicTacToeMatch,
+    removePlayerFromQueue,
+    findGameByPlayerId,
+    findRankedMatch,
     games
 };

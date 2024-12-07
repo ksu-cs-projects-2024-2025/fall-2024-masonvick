@@ -1,0 +1,75 @@
+.navbar {
+    display: flex;
+    justify-content: space-between; /* Space between logo and navbar content */
+    align-items: center;           /* Vertically center items */
+    background-color: #151e27;
+    padding: 10px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    box-sizing: border-box;
+}
+
+.navbar-logo {
+    height: 45px;                  /* Adjust logo height */
+    margin-left: 5px;             /* Optional spacing from the left edge */
+}
+
+.navbar-content {
+    display: flex;
+    align-items: center;
+    /*gap: 15px;                     /* Add spacing between buttons */
+    margin-right: 10px;            /* Optional spacing from the right edge */
+}
+
+.navbar a {
+    background-color: #263C52;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    text-decoration: none;         /* Remove underline */
+}
+
+.navbar a:hover {
+    background-color: #38526C;
+}
+
+/* Default styling for the login indicator */
+.login-indicator {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%; /* Makes it a circle, remove for a square */
+    margin-left: auto; /* Push the indicator to the far right */
+    background-color: #e74c3c; /* Default: red for not logged in */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+    transition: background-color 0.3s ease; /* Smooth transition between states */
+}
+
+/* Green when logged in */
+.login-indicator.logged-in {
+    background-color: #4CAF50; /* Green for logged in */
+}
+
+.login-indicator::after {
+    content: attr(data-status);
+    position: absolute;
+    bottom: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: #fff;
+    padding: 5px;
+    border-radius: 5px;
+    font-size: 12px;
+    display: none;
+}
+
+.login-indicator:hover::after {
+    display: block;
+}

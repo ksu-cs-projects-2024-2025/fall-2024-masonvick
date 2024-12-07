@@ -2,18 +2,21 @@
 
 const matchmakingManager = require('../matchmakingManager');
 const sql = require('mssql');
+const { getPlayerSkillRating } = require('../utils');
 
+//dict to store connected players
+// [userId: socketId]
 const connectedPlayers = {};
 
 // Handle user requests for Quick Match
 exports.findMatch = (io, socket, gameType, userId) => {
-    console.log(`Looking for a match for player ${userId} in game type ${gameType}`);
+    //console.log(`Looking for a match for player ${userId} in game type ${gameType}`);
 
-    // Track the user's socket ID to ensure it's available for matchmaking
+    // store the socket id in connectedPlayers
     connectedPlayers[userId] = socket.id;
 
     // Call matchmaking logic from matchmakingManager
-    const match = matchmakingManager.findTicTacToeMatch(io, userId, connectedPlayers);  // Use centralized logic
+    const match = matchmakingManager.findTicTacToeMatch(io, userId, connectedPlayers); 
 
     if (match) {
         const { gameId, opponent } = match;
@@ -27,7 +30,7 @@ exports.findMatch = (io, socket, gameType, userId) => {
 
             // Notify both players that a match has been found
             socket.emit('matchFound', { gameId, opponent, symbol: 'X'  });
-            opponentSocket.emit('matchFound', { gameId, opponent: userId, symbol: 'O' });
+            socket.broadcast.to(gameId).emit('matchFound', { gameId, opponent: userId, symbol: 'O' });
 
             // Start the game once the match is found
             exports.startGame(io, gameId);
@@ -70,57 +73,42 @@ exports.handleMove = async (io, socket, { gameId, index }) => {
 
     console.log(`Player ${playerId} (${playerSymbol}) making a move at index ${index}`);
 
-    // Update the game state with the move
+    // Update the game state with the move first
     game.board[index] = game.currentPlayer;
 
-    // Check for a winner after the move
+    // Check for a winner
     game.winner = checkWinner(game.board);
 
-    // Log the updated board after the move
-    console.log('Updated Game Board:', game.board);
+    // Log the updated board
+    //console.log('Updated Game Board:', game.board);
 
-    // Switch turns if there's no winner yet
+    // Switch turns if there's no winner
     if (!game.winner) {
         game.currentPlayer = game.currentPlayer === 'X' ? 'O' : 'X';
     }
 
-    // Emit the updated game state to both players
-    const updatedGameState = game.initializeGameState();
+    // Emit updated game state to both players
+    const updatedGameState = game.getGameState();
     io.of('/tic-tac-toe').to(gameId).emit('gameState', updatedGameState);
 
     // Log the game state emitted to players
-    console.log('Game State Emitted:', updatedGameState);
+    //console.log('Game State Emitted:', updatedGameState);
 
     // If the game has a winner or is a draw, save the game to the database
     if (game.winner || !game.board.includes(null)) {
         const moves = game.board.map((move, idx) => move === null ? "" : move).join(',');
         const winnerId = game.winner ? (game.winner === game.playerSymbols[game.players[0]] ? game.players[0] : game.players[1]) : null;
-        const player1Id = game.players[0];  // Use userId from the Users table
-        const player2Id = game.players[1];
-        const startTime = game.startTime;  // Assuming you set this when the game starts
+        const player1Id = game.players[0];  // get userId of player 1
+        const player2Id = game.players[1];  // get userId of player 2
+        const startTime = game.startTime;
         const endTime = new Date();  // Current time when the game ends
-
-        // Store the game in the database using Google IDs to lookup internal IDs
+        
+        // Store the game in the database
         await storeGameInDB(player1Id, player2Id, winnerId, game.playerSymbols[game.players[0]], game.playerSymbols[game.players[1]], moves, startTime, endTime);
+        // Reset the game board and emit the reset state
+        delete matchmakingManager.games[gameId];  // Add this line
     }
 };
-
-// Function to store game data in the database
-async function storeGameInDB(player1Id, player2Id, winnerId, player1Symbol, player2Symbol, moves, startTime, endTime) {
-    try {
-        if (!player1Id || !player2Id) {
-            throw new Error('Could not retrieve one or both player IDs');
-        }
-
-        // Insert the game into the TicTacToeGames table
-        console.log('Data to insert:', { player1Id, player2Id, winnerId, player1Symbol, player2Symbol, moves, startTime, endTime });
-        await sql.query`INSERT INTO TicTacToeGames (Player1Id, Player2Id, WinnerId, Player1Symbol, Player2Symbol, Moves, StartTime, EndTime)
-                        VALUES (${player1Id}, ${player2Id}, ${winnerId}, ${player1Symbol}, ${player2Symbol}, ${moves}, ${startTime}, ${endTime})`;
-        console.log('Game successfully stored in the database');
-    } catch (err) {
-        console.error('Error inserting game data into the database:', err);
-    }
-}
 
 // Define the startGame function
 exports.startGame = (io, gameId) => {
@@ -152,13 +140,203 @@ exports.emitGameState = (io, gameId) => {
     const game = matchmakingManager.games[gameId];
     if (game) {
         console.log(`Emitting game state for game ${gameId}`);
-        const gameState = game.initializeGameState();
-        io.of('/tic-tac-toe').to(gameId).emit('gameState', gameState);  // Emit the initial state to all players in the room in the /tic-tac-toe namespace
+        io.of('/tic-tac-toe').to(gameId).emit('gameState', game.getGameState());  // Emit the initial state to all players in the room in the /tic-tac-toe namespace
     } else {
         console.error(`Game with ID ${gameId} not found.`);
     }
 };
 
+exports.findRankedMatch = (io, socket, gameType, userId, skillRating) => {
+    console.log(`Looking for a ranked Tic-Tac-Toe match for user ${userId} with rating ${skillRating}`);
+
+    // Store the player's socket ID
+    connectedPlayers[userId] = socket.id;
+
+    const match = matchmakingManager.findRankedMatch(gameType, userId, skillRating, connectedPlayers);
+
+    // If no match found, just return
+    if (!match) {
+        console.log(`User ${userId} with rating ${skillRating} is waiting for a ranked Tic-Tac-Toe match.`);
+        return;
+    }
+
+    const { gameId, players } = match;
+
+    // The first player in the array is 'X', the second is 'O'
+    const playerX = players[0];
+    const playerO = players[1];
+
+    // Now send `matchFound` with the symbol to each player
+    const playerXSocket = io.of('/tic-tac-toe').sockets.get(connectedPlayers[playerX]);
+    const playerOSocket = io.of('/tic-tac-toe').sockets.get(connectedPlayers[playerO]);
+
+    if (playerXSocket) {
+        playerXSocket.join(gameId);
+        playerXSocket.gameId = gameId;
+        console.log(`Player ${playerX} joined ranked room ${gameId}`);
+        playerXSocket.emit('matchFound', { gameId, opponent: playerO, symbol: 'X' });
+    } else {
+        console.error(`Socket not found for ranked player ${playerX}`);
+    }
+
+    if (playerOSocket) {
+        playerOSocket.join(gameId);
+        playerOSocket.gameId = gameId;
+        console.log(`Player ${playerO} joined ranked room ${gameId}`);
+        playerOSocket.emit('matchFound', { gameId, opponent: playerX, symbol: 'O' });
+    } else {
+        console.error(`Socket not found for ranked player ${playerO}`);
+    }
+
+    // Start the Tic Tac Toe game
+    exports.startGame(io, gameId);
+};
+
+
+
+// Handle game forfeiture when a player disconnects or leaves the game
+exports.forfeitGame = (io, userId) => {
+    //const game = matchmakingManager.findGameByPlayer(userId, 'tic-tac-toe');
+    if (!game) {
+        console.log(`No game found for user ${userId} to forfeit.`);
+        return;
+    }
+
+    const opponentId = game.players.find(id => id !== userId);
+    game.winner = opponentId;  // Set the opponent as the winner
+
+    console.log(`Player ${userId} forfeited. Opponent ${opponentId} wins the game.`);
+
+    // Emit game state showing that the opponent won
+    const updatedGameState = game.getGameState();
+    io.of('/tic-tac-toe').to(game.id).emit('gameState', updatedGameState);
+
+    // You may also want to store the game result in the database
+    storeGameInDB(game.players[0], game.players[1], game.winner, game.playerSymbols[game.players[0]], game.playerSymbols[game.players[1]], game.board.join(','), game.startTime, new Date());
+};
+
+// Function to store game data in the database
+async function storeGameInDB(player1Id, player2Id, winnerId, player1Symbol, player2Symbol, moves, startTime, endTime) {
+    try {
+        if (!player1Id || !player2Id) {
+            throw new Error('Could not retrieve one or both player IDs');
+        }
+
+        // Insert the game into the TicTacToeGames table
+        console.log('Data to insert:', { player1Id, player2Id, winnerId, player1Symbol, player2Symbol, moves, startTime, endTime });
+        await sql.query`INSERT INTO TicTacToeGames (Player1Id, Player2Id, WinnerId, Player1Symbol, Player2Symbol, Moves, StartTime, EndTime)
+                        VALUES (${player1Id}, ${player2Id}, ${winnerId}, ${player1Symbol}, ${player2Symbol}, ${moves}, ${startTime}, ${endTime})`;
+        console.log('Game successfully stored in the database');
+    } catch (err) {
+        console.error('Error inserting game data into the database:', err);
+    }
+}
+
+// Function to check for a winner (can be extended or imported)
+function checkWinner(board) {
+    const winningCombinations = [
+        [0, 1, 2], [3, 4, 5], [6, 7, 8],
+        [0, 3, 6], [1, 4, 7], [2, 5, 8],
+        [0, 4, 8], [2, 4, 6]
+    ];
+
+    for (let [a, b, c] of winningCombinations) {
+        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+            return board[a];  // Return the winner ('X' or 'O')
+        }
+    }
+    return null;
+}
+
+
+//
+//
+// Section for games via codes
+//
+//
+
+exports.createGame = (io, socket, gameType, userId) => {
+    try {
+        // Step 1: Generate a new game session
+        const gameId = matchmakingManager.createGameSession(gameType, userId);
+        const game = matchmakingManager.games[gameId];
+
+        if (!game) {
+            console.error(`Failed to create game session for user ${userId}.`);
+            return null;
+        }
+
+        // Step 2: Initialize game state
+        game.players = [userId]; // Add the creating player
+        game.playerSymbols[userId] = 'X'; // Assign 'X' to the creator
+        game.currentPlayer = 'X'; // 'X' always starts
+
+        console.log(`Game created with ID: ${gameId} by user ${userId}`);
+        
+        // Map the creator's userId to their socket ID (if not already done)
+        connectedPlayers[userId] = socket.id;
+
+        // Step 3: Notify the creator of the game
+        socket.emit('gameCreated', { gameId });
+        
+        return gameId;
+    } catch (error) {
+        console.error('Error creating game:', error);
+        socket.emit('error', { message: 'Failed to create game. Please try again.' });
+        return null;
+    }
+};
+
+exports.joinGameByCode = (io, socket, gameId, userId) => {
+    const game = matchmakingManager.joinGame(gameId, userId);
+    if (!game) {
+        console.error(`Game with ID ${gameId} not found or is full.`);
+        return false;
+    }
+
+    console.log(`Game found with ID: ${gameId}. Pairing players: ${game.players.join(', ')}`);
+
+    // Add both players to the game room
+    game.players.forEach((playerId) => {
+        const playerSocketId = playerId === userId ? socket.id : connectedPlayers[playerId];
+        const playerSocket = io.of('/tic-tac-toe').sockets.get(playerSocketId);
+        if (playerSocket) {
+            playerSocket.join(gameId);
+        } else {
+            console.error(`Socket not found for player ${playerId}`);
+        }
+    });
+
+    // Notify both players
+    const [player1, player2] = game.players;
+    const player1Symbol = 'X';
+    const player2Symbol = 'O';
+
+    //socket.emit('matchFound', { gameId, opponent: player2, symbol: player1Symbol });
+    //socket.broadcast.to(gameId).emit('matchFound', { gameId, opponent: player1, symbol: player2Symbol });
+
+    socket.emit('matchFound', { 
+        gameId, 
+        opponent: game.players.find(id => id !== userId), 
+        symbol: game.playerSymbols[userId] 
+    });
+    
+    socket.broadcast.to(gameId).emit('matchFound', { 
+        gameId, 
+        opponent: userId, 
+        symbol: game.playerSymbols[game.players.find(id => id !== userId)] 
+    });
+
+    // Emit the initial game state
+    exports.emitGameState(io, gameId);
+    return true;
+};
+
+
+
+// Following code is for enabling a rematch option, but not used for now
+
+/*
 // Handle game reset
 exports.resetGame = (io, socket, gameId) => {
     const game = matchmakingManager.games[gameId];
@@ -171,7 +349,7 @@ exports.resetGame = (io, socket, gameId) => {
     game.currentPlayer = 'X';
     game.winner = null;
 
-    const gameState = game.initializeGameState();
+    const gameState = game.getGameState();
     io.of('/tic-tac-toe').to(gameId).emit('gameState', gameState);
 };
 
@@ -231,7 +409,7 @@ exports.acceptRematch = (io, socket, gameId) => {
     io.of('/tic-tac-toe').to(gameId).emit('rematchAccepted');
 
     // Emit the new game state
-    const gameState = game.initializeGameState();
+    const gameState = game.getGameState();
     io.of('/tic-tac-toe').to(gameId).emit('gameState', gameState);
 };
 
@@ -259,54 +437,4 @@ exports.declineRematch = (io, socket, gameId) => {
     console.log(`Rematch declined by player ${playerId}`);
 };
 
-// Handle players joining the game room and emit the initial game state
-exports.joinGame = (io, socket, gameId) => {
-    const game = matchmakingManager.games[gameId];
-    if (game) {
-        console.log(`Player joined game ${gameId}`);
-        socket.join(gameId);  // Ensure the socket joins the room
-
-        // Emit the initial game state to the player who joined
-        const gameState = game.initializeGameState();
-        socket.emit('gameState', gameState);  // Emit directly to the socket
-    } else {
-        console.error(`Game with ID ${gameId} not found.`);
-    }
-};
-
-// Handle game forfeiture when a player disconnects or leaves the game
-exports.forfeitGame = (io, userId) => {
-    const game = matchmakingManager.findGameByPlayer(userId, 'tic-tac-toe');
-    if (!game) {
-        console.log(`No game found for user ${userId} to forfeit.`);
-        return;
-    }
-
-    const opponentId = game.players.find(id => id !== userId);
-    game.winner = opponentId;  // Set the opponent as the winner
-
-    console.log(`Player ${userId} forfeited. Opponent ${opponentId} wins the game.`);
-
-    // Emit game state showing that the opponent won
-    const updatedGameState = game.initializeGameState();
-    io.of('/tic-tac-toe').to(game.id).emit('gameState', updatedGameState);
-
-    // You may also want to store the game result in the database
-    storeGameInDB(game.players[0], game.players[1], game.winner, game.playerSymbols[game.players[0]], game.playerSymbols[game.players[1]], game.board.join(','), game.startTime, new Date());
-};
-
-// Function to check for a winner (can be extended or imported)
-function checkWinner(board) {
-    const winningCombinations = [
-        [0, 1, 2], [3, 4, 5], [6, 7, 8],
-        [0, 3, 6], [1, 4, 7], [2, 5, 8],
-        [0, 4, 8], [2, 4, 6]
-    ];
-
-    for (let [a, b, c] of winningCombinations) {
-        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-            return board[a];  // Return the winner ('X' or 'O')
-        }
-    }
-    return null;
-}
+*/

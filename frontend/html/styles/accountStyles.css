@@ -1,0 +1,106 @@
+/* Account Page Styles */
+.login-container {
+    width: 350px;
+    margin: 100px auto;
+    padding: 20px;
+    background-color: #f5f5f5;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    position: relative;
+}
+
+/* Styling the tabs */
+.tab {
+    display: flex;
+    justify-content: center;
+}
+
+.tab button {
+    background-color: #ccc;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    outline: none;
+    font-weight: bold;
+    border-radius: 10px 10px 0 0;
+}
+
+.tab button.active {
+    background-color: #333;
+    color: white;
+}
+
+/* Content of each tab */
+.tabcontent {
+    display: none;
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 0 0 10px 10px;
+}
+
+.tabcontent.active {
+    display: block;
+}
+
+/* Form elements */
+form label {
+    display: block;
+    margin: 10px 0 5px;
+    font-weight: bold;
+}
+
+form input {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+form button {
+    width: 100%;
+    padding: 10px;
+    background-color: #333;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+form a {
+    text-align: center;
+    display: block;
+    margin-top: 10px;
+    color: white;
+    background-color: #e74c3c;
+    padding: 10px;
+    border-radius: 5px;
+    text-decoration: none;
+}
+
+form a:hover {
+    background-color: #c0392b;
+}
+
+.dashboard {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.stats-section, .preferences-section {
+    margin-top: 30px;
+}
+
+.stats-section h3, .preferences-section h2 {
+    margin-bottom: 15px;
+    color: #333;
+}
+
+#themeColor {
+    margin-left: 10px;
+}

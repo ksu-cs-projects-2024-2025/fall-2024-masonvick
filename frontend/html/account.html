@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login/Register</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="styles/style.css">
+    <link rel="stylesheet" href="styles/accountStyles.css">
 </head>
 <body>
     <!-- Placeholder for the navigation bar -->
@@ -55,7 +56,30 @@
         </div>
     </div>
 
-    
+    <div class="dashboard" id="dashboard" style="display: none;">
+        <h1>Welcome to Your Dashboard</h1>
+        <div class="stats-section">
+            <h2>Your Stats</h2>
+            <div id="ticTacToeStats">
+                <h3>Tic Tac Toe</h3>
+                <p>Total Wins: <span id="tictactoeWins">-</span></p>
+                <p>Total Losses: <span id="tictactoeLosses">-</span></p>
+                <p>Win/Loss Ratio: <span id="tictactoeRatio">-</span></p>
+            </div>
+            <div id="lightbikesStats">
+                <h3>Lightbikes</h3>
+                <p>Total Wins: <span id="lightbikesWins">-</span></p>
+                <p>Total Losses: <span id="lightbikesLosses">-</span></p>
+                <p>Win/Loss Ratio: <span id="lightbikesRatio">-</span></p>
+            </div>
+        </div>
+        <div class="preferences-section">
+            <h2>Preferences</h2>
+            <label for="themeColor">Theme Color:</label>
+            <input type="color" id="themeColor" value="#e2dddd">
+            <button id="applyTheme">Apply Theme</button>
+        </div>
+    </div>
 
     <script>
         // Function to handle tab switching
@@ -177,12 +201,68 @@
             })
             .catch(error => console.error('Error logging in user:', error));
         });
+
     </script>
 
     <script>
         fetch('navbar.html')
             .then(response => response.text())
-            .then(data => document.getElementById('navbar').innerHTML = data);
+            .then(data => {
+                document.getElementById('navbar').innerHTML = data;
+
+                // Re-execute session checking after navbar is loaded
+                fetch('/api/session', { credentials: 'include' })
+                    .then(response => response.json())
+                    .then(data => {
+                        const loginIndicator = document.getElementById('loginIndicator');
+                        const loginContainer = document.querySelector('.login-container');
+                        const dashboard = document.getElementById('dashboard');
+
+                        if (data.isAuthenticated) {
+                            // Update navbar login indicator
+                            loginIndicator.textContent = `Logged in as ${data.username}`;
+                            loginIndicator.style.color = "green";
+
+                            // Show the dashboard and hide login/register form
+                            loginContainer.style.display = 'none';
+                            dashboard.style.display = 'block';
+
+                            // Optionally, fetch user stats for the dashboard
+                            fetch('/api/user-stats', { credentials: 'include' })
+                                .then(statsResponse => statsResponse.json())
+                                .then(stats => {
+                                    document.getElementById('tictactoeWins').textContent = stats.TicTacToeWins || 0;
+                                    document.getElementById('tictactoeLosses').textContent = stats.TicTacToeLosses || 0;
+                                    document.getElementById('tictactoeRatio').textContent = (stats.TicTacToeWins / (stats.TicTacToeLosses || 1)).toFixed(2);
+
+                                    document.getElementById('lightbikesWins').textContent = stats.LightbikesWins || 0;
+                                    document.getElementById('lightbikesLosses').textContent = stats.LightbikesLosses || 0;
+                                    document.getElementById('lightbikesRatio').textContent = (stats.LightbikesWins / (stats.LightbikesLosses || 1)).toFixed(2);
+                                })
+                                .catch(statsError => {
+                                    console.error('Error fetching user stats:', statsError);
+                                });
+                        } else {
+                            // Update navbar login indicator
+                            loginIndicator.textContent = 'Not logged in';
+                            loginIndicator.style.color = "red";
+
+                            // Show login/register form and hide dashboard
+                            loginContainer.style.display = 'block';
+                            dashboard.style.display = 'none';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking session:', error);
+                        document.getElementById('loginIndicator').textContent = 'Error checking session';
+
+                        // Default to showing login/register form in case of error
+                        document.querySelector('.login-container').style.display = 'block';
+                        document.getElementById('dashboard').style.display = 'none';
+                    });
+            });
     </script>
+
+    <script src="authCheck.js"></script>
 </body>
 </html>

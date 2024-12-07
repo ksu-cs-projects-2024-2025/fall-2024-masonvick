@@ -1,0 +1,33 @@
+/* Wordle Styles */
+
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+}
+
+#gameContainer {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 20px;
+}
+
+.board {
+    display: grid;
+    grid-template-columns: repeat(5, 40px);
+    gap: 5px;
+}
+
+.opponent-view .cell {
+    background-color: lightgray;
+}
+
+.cell {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #333;
+    font-size: 1.5em;
+    text-transform: uppercase;
+}
