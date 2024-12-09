@@ -222,30 +222,11 @@ const createGameSession = (gameType, playerId) => {
     const game = createGame(gameType); // Create a new game instance
     game.players = []; // Ensure players array is initialized
     game.players.push(playerId); // Add the creating player
-    game.gameState = game.initializeGameState(); // Initialize the game state immediately
     games[gameId] = game; // Store the entire game instance
     console.log(`Game session created with ID: ${gameId} by player ${playerId}`);
     return gameId;
 };
 
-
-const removePlayerFromQueue = (playerId) => {
-    Object.keys(waitingPlayers).forEach(gameType => {
-        waitingPlayers[gameType] = waitingPlayers[gameType].filter(id => id !== playerId);
-    });
-    console.log(`Player ${playerId} removed from all queues.`);
-};
-
-// This function searches for a game that contains the specified playerId
-function findGameByPlayerId(playerId) {
-    for (const gameId in games) {
-        const game = games[gameId];
-        if (game.players.includes(playerId)) {
-            return game;
-        }
-    }
-    return null; // Return null if no game contains the playerId
-}
 
 module.exports = {
     createGameSession,
@@ -253,8 +234,6 @@ module.exports = {
     joinGame,
     joinLightbikesGame,
     findTicTacToeMatch,
-    removePlayerFromQueue,
-    findGameByPlayerId,
     findRankedMatch,
     games
 };

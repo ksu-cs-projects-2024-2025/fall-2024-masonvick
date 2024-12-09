@@ -15,8 +15,8 @@ class TicTacToeGame {
             board: this.board,
             currentPlayer: this.currentPlayer,
             winner: this.winner,
-            players: this.players,              // These will be set after initialization
-            playerSymbols: this.playerSymbols   // These will be set after initialization
+            players: this.players,
+            playerSymbols: this.playerSymbols  
         };
     }
 }

@@ -95,3 +95,219 @@ classDiagram
 
 
 
+
+
+sequenceDiagram
+    participant Player as Player
+    participant Browser as Browser
+    participant Socket as Socket.IO
+    participant Server as Server
+    participant Matchmaking as MatchmakingManager
+    participant TicTacToe as TicTacToeController
+    participant DB as Database
+
+    Player->>Browser: Opens Tic Tac Toe page
+    Browser->>Socket: Connect to /tic-tac-toe namespace
+    Socket->>Server: Identify user with userId
+    Server->>Matchmaking: Add userId to queue (quick match request)
+    Matchmaking-->>Socket: Match found
+    Socket->>TicTacToe: joinGame(gameId)
+    TicTacToe->>Socket: Emit initial gameState
+    Socket->>Browser: Display game board
+
+    Player->>Browser: Clicks on cell to make a move
+    Browser->>Socket: Emit makeMove(gameId, cell index)
+    Socket->>TicTacToe: handleMove(gameId, index)
+    TicTacToe->>DB: Store move in database
+    TicTacToe->>Socket: Emit updated gameState
+    Socket->>Browser: Update board with new move
+
+    alt Winner Found
+        TicTacToe->>DB: Store game result
+        TicTacToe->>Socket: Emit game over with winner
+        Socket->>Browser: Display winner
+    else Draw
+        TicTacToe->>DB: Store game result
+        TicTacToe->>Socket: Emit game over (draw)
+        Socket->>Browser: Display draw message
+    end
+
+    Player->>Browser: Closes or leaves page
+    Browser->>Socket: Emit forfeitGame or disconnect
+    Socket->>TicTacToe: forfeitGame(userId)
+    TicTacToe->>Matchmaking: Remove user from queue
+    TicTacToe->>DB: Store game as forfeited
+
+
+
+
+    entering namespace (game page):
+
+    sequenceDiagram
+    %%participant User as User
+    participant Browser as Browser
+    participant Server as Game Server
+    %%User->>Browser: Open game page (e.g., Lightbikes)
+    Browser->>Server: Establish WebSocket connection (namespace: /gamename)
+    Server-->>Browser: Assign Socket ID
+    Browser->>Server: Fetch userId via /api/user
+    Server-->>Browser: Respond with userId
+    Browser->>Server: Emit 'identify' event with userId
+    Server-->>Server: Associate userId with Socket ID
+    Server-->>Browser: Connection ready for game events
+
+
+
+
+flowchart TD
+    A["Player Requests Match"] -->|Quick Match| B["Add to Queue"]
+    A -->|Ranked Match| C["Add to Ranked Queue"]
+    B --> D{"2 Players"}
+    C --> D
+    D -->|No| E["Wait for More Players"]
+    D -->|Yes| F["Create Game"]
+
+
+    style A stroke:#000000,fill:#E1F0D4
+    style B stroke:#000000,fill:#C3EFE0
+    style C stroke:#000000,fill:#C3EFE0
+    style D stroke:#000000,fill:#F6ACD8
+    style E stroke:#000000,fill:#C2C4B3
+    style F stroke:#000000,fill:#E9A3B2
+
+
+TIC TAC TOE GAME FLOW FULL
+
+sequenceDiagram
+    participant P1 as Player 1
+    participant P2 as Player 2
+    participant FE as Frontend
+    participant IS as IO Server
+    participant ER as Express Router
+    participant C as TicTacToe Controller
+    participant MM as Matchmaking Manager
+    participant DB as SQL Server
+
+    Note over IS: Created in server.js<br/>with Socket.IO
+
+    P1->>IS: connect to '/tic-tac-toe' namespace
+    P1->>IS: identify(userId)
+    Note over C: Store in connectedPlayers
+
+    P2->>IS: connect to '/tic-tac-toe' namespace
+    P2->>IS: identify(userId)
+    Note over C: Store in connectedPlayers
+
+    P1->>IS: quickMatch({gameType, userId})
+    IS->>ER: Route to tictactoe.js
+    ER->>C: findMatch(io, socket, gameType, userId)
+    C->>MM: findTicTacToeMatch(io, userId, connectedPlayers)
+    Note over MM: Player1 added to queue
+
+    P2->>IS: quickMatch({gameType, userId})
+    IS->>ER: Route to tictactoe.js
+    ER->>C: findMatch(io, socket, gameType, userId)
+    C->>MM: findTicTacToeMatch(io, userId, connectedPlayers)
+    Note over MM: Match found!<br/>Creates game & assigns players
+
+    C->>P1: emit('matchFound', {gameId, symbol: 'X'})
+    C->>P2: broadcast.to(gameId).emit('matchFound', {gameId, symbol: 'O'})
+    
+    C->>C: startGame(io, gameId)
+    Note over C: Initializes board<br/>Sets player symbols
+    C->>IS: emitGameState(getGameState())
+
+    P1->>IS: makeMove({gameId, index})
+    IS->>C: handleMove(io, socket, data)
+    Note over C: Validates move<br/>Updates board<br/>Checks winner
+    C->>IS: emit('gameState', getGameState())
+
+    Note over C: Game ends
+    C->>DB: storeGameInDB()
+    Note over C: Delete game from MM.games<br/>Clean up connectedPlayers
+
+
+
+    LIGHTBIKES FULL SEQ DIAGRAM 
+
+
+    sequenceDiagram
+    participant P1 as Player 1
+    participant P2 as Player 2
+    participant FE as Frontend
+    participant S as Socket.io Server
+    participant C as Lightbikes Controller
+    participant MM as Matchmaking Manager
+    participant GF as GameFactory
+    participant DB as SQL Server
+
+    %% Game Selection
+    P1->>FE: Click "Lightbikes"
+    FE->>FE: Load game interface
+    P2->>FE: Click "Lightbikes"
+    FE->>FE: Load game interface
+
+    %% Socket Connection
+    P1->>S: connect() to '/lightbikes' namespace
+    P1->>S: identify(userId)
+    
+    P2->>S: connect() to '/lightbikes' namespace
+    P2->>S: identify(userId)
+
+    %% Matchmaking
+    P1->>S: quickMatch({gameType: 'lightbikes', userId})
+    S->>C: findMatch(io, socket, gameType, userId)
+    C->>MM: findLightbikesMatch(io, userId, connectedPlayers)
+    Note over MM: Player 1 added to waiting queue
+    
+    P2->>S: quickMatch({gameType: 'lightbikes', userId})
+    S->>C: findMatch(io, socket, gameType, userId)
+    C->>MM: findLightbikesMatch(io, userId, connectedPlayers)
+    Note over MM: Match found
+
+    MM->>GF: createGame('lightbikes')
+    GF-->>MM: new LightbikesGame instance
+    Note over MM: Stores game with gameId in games object
+
+    MM-->>P1: emit('matchFound', {gameId, players})
+    MM-->>P2: emit('matchFound', {gameId, players})
+
+    %% Game Start
+    P1->>S: joinGame(gameId)
+    P2->>S: joinGame(gameId)
+    
+    C->>S: startGame(io, gameId)
+    Note over C: Initializes grid, player positions,<br/>directions, and colors
+    Note over C: Starts game interval loop
+    S-->>P1: emit('gameState', initialState)
+    S-->>P2: emit('gameState', initialState)
+
+    %% Game Play Loop
+    loop Every 100ms until collision
+        Note over C: Update player positions
+        Note over C: Check for collisions
+        Note over C: Update trails
+        C-->>P1: emit('gameState', updatedState)
+        C-->>P2: emit('gameState', updatedState)
+        
+        alt Player steers
+            P1->>S: steer({gameId, direction: 'right'})
+            S->>C: handleSteer(io, socket, data)
+            Note over C: Update player direction
+            C-->>P1: emit('gameState', updatedState)
+            C-->>P2: emit('gameState', updatedState)
+        end
+    end
+
+    %% Game End (on collision)
+    Note over C: Detect collision
+    C->>DB: storeLightbikesGameInDB(player1Id, player2Id, winnerId, ...)
+    DB-->>C: Game stored successfully
+    C-->>P1: emit('gameOver', {winner})
+    C-->>P2: emit('gameOver', {winner})
+
+    %% Optional Rematch
+    P1->>S: requestRematch(gameId)
+    S-->>P2: emit('rematchRequested')sequenceDiagram
+    participant P1 as Player 1
+    participant P2 as Player 2

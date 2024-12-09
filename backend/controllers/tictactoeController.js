@@ -119,9 +119,9 @@ exports.startGame = (io, gameId) => {
     }
 
     // Initialize game state and players
-    game.board = Array(9).fill(null);  // Tic-Tac-Toe has 9 cells
-    game.currentPlayer = 'X';  // 'X' always starts first
-    game.winner = null;
+    //game.board = Array(9).fill(null);  // Tic-Tac-Toe has 9 cells
+    //game.currentPlayer = 'X';  // 'X' always starts first
+    //game.winner = null;
 
     // Assign symbols to players
     game.playerSymbols = {

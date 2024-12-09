@@ -52,7 +52,7 @@ exports.startGame = (io, gameId) => {
     }
 
     // Initialize game state and players' starting positions
-    game.gameState = game.initializeGameState();
+    //game.gameState = game.initializeGameState();
     game.state = new Uint8Array(WIDTH * HEIGHT); // Store the grid as a 1D array for trails
 
     console.log(`Starting game ${gameId} with players: ${game.players}`);
