@@ -19,9 +19,6 @@ async function getPlayerSkillRating(userId, gameType) {
     // If no games played, default rating
     if (total === 0) return 1000;
 
-    // Simple formula: rating = 1000 + (wins/total)*500 - (losses*X)
-    // For simplicity, let's say rating = 1000 + (wins/total)*500
-    // This gives players with better W/L a higher rating.
     const winRatio = wins / total;
     const rating = 1000 + winRatio * 500;
 

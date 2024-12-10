@@ -21,8 +21,8 @@
                 .then(data => {
                     const loginIndicator = document.getElementById('loginIndicator');
                     if (data.isAuthenticated) {
-                        loginIndicator.textContent = `Logged in as ${data.username}`;
-                        loginIndicator.style.color = "green";
+                        //loginIndicator.textContent = `Logged in as ${data.username}`;
+                        loginIndicator.style.backgroundColor = "green";
                     } else {
                         loginIndicator.textContent = 'Not logged in';
                         loginIndicator.style.color = "red";
@@ -46,16 +46,22 @@
         <!-- Main page content goes here -->
         <h1>Games</h1>
         <!-- login -->
-         <form action="lightbikes.html">
+        <form action="lightbikes.html">
             <button type="submit" class="button">Lightbikes</button>
-         </form>
-         <form action="tictactoe.html">
+        </form>
+        <form action="tictactoe.html">
             <button type="submit" class="button">Tic Tac Toe</button>
         </form>
-        <button type="submit" class="button">Game 3</button>
-         <button type="submit" class="button">Game 4</button>
-         <button type="submit" class="button">Game 5</button>
-         <button type="submit" class="button">Game 6</button>
+        <form action="tictactoe.html">
+            <button type="submit" class="button">Game 3</button>
+        </form>
+        <form action="tictactoe.html">
+            <button type="submit" class="button">Game 4</button>
+        </form>
+        <form action="tictactoe.html">
+            <button type="submit" class="button">Game 5</button>
+        </form>
+
     </div>
 
 

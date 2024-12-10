@@ -90,7 +90,7 @@ module.exports = (io) => {
             const playerId = socket.userId;
             if(playerId){
                 //delete ticTacToeController.connectedPlayers[playerId];
-                matchmakingManager.removePlayerFromQueue(playerId);
+                //matchmakingManager.removePlayerFromQueue(playerId);
             }
             socket.leaveAll();
             console.log(`Cleanup completed for player ${playerId}`);

@@ -103,13 +103,14 @@ passport.use(new GoogleStrategy({
   (accessToken, refreshToken, profile, done) => {
     // Save user info to database.
     // for now, return the profile
+    console.log("Google profile:", profile);
     return done(null, profile);
   }
 ));
 
 // Serialize the user ID to store in the session
 passport.serializeUser((user, done) => {
-    //console.log('Serializing user:', user.Id);  // Log user ID
+    console.log('Serializing user:', user.Id);  // Log user ID
     done(null, user.Id);  // Store the user ID in the session
 });
 
@@ -368,7 +369,7 @@ app.post('/quick-match', (req, res) => {
 
 
 // Add the leaderboard route
-app.get('/leaderboard/:game', async (req, res) => {
+/*app.get('/leaderboard/:game', async (req, res) => {
     const gameType = req.params.game;
 
     try {
@@ -407,7 +408,96 @@ app.get('/leaderboard/:game', async (req, res) => {
         console.error('Error fetching leaderboard data:', err);
         res.status(500).json({ error: 'Failed to retrieve leaderboard data' });
     }
+});*/
+
+app.get('/leaderboard/:game', async (req, res) => {
+    const gameType = req.params.game;
+
+    try {
+        let query;
+        if (gameType === 'tic-tac-toe') {
+            query = `
+                SELECT 
+                    Users.Id AS UserId,
+                    Users.Username AS UserName,
+                    SUM(CASE WHEN TicTacToeGames.WinnerId = Users.Id THEN 1 ELSE 0 END) AS TotalWins,
+                    SUM(CASE WHEN (TicTacToeGames.Player1Id = Users.Id OR TicTacToeGames.Player2Id = Users.Id) AND TicTacToeGames.WinnerId != Users.Id THEN 1 ELSE 0 END) AS TotalLosses,
+                    COUNT(TicTacToeGames.GameId) AS TotalGames,
+                    CAST(AVG(CAST(LEN(TicTacToeGames.Moves) / 2.0 AS FLOAT)) AS DECIMAL(10, 2)) AS AverageMovesPerGame,
+                    CAST(AVG(CAST(DATEDIFF(SECOND, TicTacToeGames.StartTime, TicTacToeGames.EndTime) AS FLOAT)) AS DECIMAL(10, 2)) AS AverageGameLengthInSeconds
+                FROM 
+                    Users
+                LEFT JOIN 
+                    TicTacToeGames ON Users.Id IN (TicTacToeGames.Player1Id, TicTacToeGames.Player2Id)
+                WHERE 
+                    TicTacToeGames.GameId IS NOT NULL
+                GROUP BY 
+                    Users.Id, Users.Username
+                ORDER BY 
+                    TotalWins DESC, AverageMovesPerGame ASC;
+            `;
+        } else if (gameType === 'lightbikes') {
+            query = `
+                SELECT 
+                    Users.Id AS UserId,
+                    Users.Username AS UserName,
+                    -- Total Wins
+                    SUM(CASE WHEN LightbikesGames.WinnerId = Users.Id THEN 1 ELSE 0 END) AS TotalWins,
+                    -- Total Losses
+                    SUM(CASE WHEN 
+                        (LightbikesGames.Player1Id = Users.Id OR LightbikesGames.Player2Id = Users.Id) 
+                        AND LightbikesGames.WinnerId != Users.Id 
+                    THEN 1 ELSE 0 END) AS TotalLosses,
+                    -- Win/Loss Ratio
+                    CAST(SUM(CASE WHEN LightbikesGames.WinnerId = Users.Id THEN 1 ELSE 0 END) AS FLOAT) /
+                    NULLIF(SUM(CASE WHEN (LightbikesGames.Player1Id = Users.Id OR LightbikesGames.Player2Id = Users.Id) THEN 1 ELSE 0 END), 0) AS WinLossRatio,
+                    -- Average Steers Per Game
+                    CAST(SUM(CASE 
+                        WHEN LightbikesGames.Player1Id = Users.Id 
+                            THEN LEN(LightbikesGames.Player1Steers) - LEN(REPLACE(LightbikesGames.Player1Steers, ',', '')) + 1
+                        WHEN LightbikesGames.Player2Id = Users.Id 
+                            THEN LEN(LightbikesGames.Player2Steers) - LEN(REPLACE(LightbikesGames.Player2Steers, ',', '')) + 1
+                    END) AS FLOAT) /
+                    NULLIF(SUM(CASE 
+                        WHEN LightbikesGames.Player1Id = Users.Id OR LightbikesGames.Player2Id = Users.Id THEN 1 ELSE 0 
+                    END), 0) AS AverageSteersPerGame,
+                    -- Average Trail Length
+                    CAST(AVG(CASE 
+                        WHEN LightbikesGames.Player1Id = Users.Id 
+                            THEN CAST(LightbikesGames.Player1TrailLength AS FLOAT)
+                        WHEN LightbikesGames.Player2Id = Users.Id 
+                            THEN CAST(LightbikesGames.Player2TrailLength AS FLOAT)
+                    END) AS DECIMAL(10, 2)) AS AverageTrailLength,
+                    -- Longest Trail Length
+                    MAX(CASE 
+                        WHEN LightbikesGames.Player1Id = Users.Id 
+                            THEN CAST(LightbikesGames.Player1TrailLength AS FLOAT)
+                        WHEN LightbikesGames.Player2Id = Users.Id 
+                            THEN CAST(LightbikesGames.Player2TrailLength AS FLOAT)
+                    END) AS LongestTrailLength
+                FROM 
+                    Users
+                LEFT JOIN 
+                    LightbikesGames ON Users.Id IN (LightbikesGames.Player1Id, LightbikesGames.Player2Id)
+                WHERE 
+                    LightbikesGames.GameId IS NOT NULL
+                GROUP BY 
+                    Users.Id, Users.Username
+                ORDER BY 
+                    TotalWins DESC, AverageSteersPerGame ASC;
+            `;
+        } else {
+            return res.status(400).json({ error: 'Unsupported game type' });
+        }
+
+        const result = await sql.query(query);
+        res.json(result.recordset); // Send the leaderboard data as JSON
+    } catch (err) {
+        console.error('Error fetching leaderboard data:', err);
+        res.status(500).json({ error: 'Failed to retrieve leaderboard data' });
+    }
 });
+
 
 app.get('/api/user-stats', async (req, res) => {
     if (!req.isAuthenticated()) {

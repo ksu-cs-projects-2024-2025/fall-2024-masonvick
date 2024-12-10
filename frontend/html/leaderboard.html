@@ -13,15 +13,20 @@
     <!-- Placeholder for the navigation bar -->
     <div id="navbar"></div>
 
-    <h1>Leaderboard</h1>
+    <!-- Header and dropdown container -->
+    <div class="leaderboard-header">
+        <h1>Leaderboard</h1>
 
-    <!-- Dropdown to select the game -->
-    <label for="gameSelect">Select a Game:</label>
-    <select id="gameSelect">
-        <option value="tic-tac-toe">Tic Tac Toe</option>
-        <option value="lightbikes">Lightbikes</option>
-        <!-- Add more games here -->
-    </select>
+        <!-- Dropdown to select the game -->
+        <div class="game-select">
+            <label for="gameSelect">Select a Game:</label>
+            <select id="gameSelect">
+                <option value="tic-tac-toe">Tic Tac Toe</option>
+                <option value="lightbikes">Lightbikes</option>
+                <!-- Add more games here -->
+            </select>
+        </div>
+    </div>
 
     <!-- Table to display the leaderboard -->
     <table id="leaderboardTable" border="1">
@@ -48,39 +53,69 @@
                 try {
                     const response = await fetch(`/leaderboard/${game}`);
                     const data = await response.json();
-                    console.log('Leaderboard Data:', data);  // Add this line for debugging
-    
-                    // Clear existing rows
+                    console.log('Leaderboard Data:', data);
+
+                    // Clear existing rows and columns
                     leaderboardTableBody.innerHTML = '';
-    
+                    const headerRow = leaderboardTableBody.closest('table').querySelector('thead tr');
+                    headerRow.innerHTML = ''; // Clear table headers
+
+                    if (game === 'tic-tac-toe') {
+                        // Set up headers for Tic Tac Toe
+                        headerRow.innerHTML = `
+                            <th>Username</th>
+                            <th>Total Wins</th>
+                            <th>Total Losses</th>
+                            <th>W/L Ratio</th>
+                            <th>Average Moves per Game</th>
+                            <th>Average Game Length (seconds)</th>
+                        `;
+                    } else if (game === 'lightbikes') {
+                        // Set up headers for Lightbikes
+                        headerRow.innerHTML = `
+                            <th>Username</th>
+                            <th>Total Wins</th>
+                            <th>Total Losses</th>
+                            <th>W/L Ratio</th>
+                            <th>Average Steers per Game</th>
+                            <th>Average Trail Length</th>
+                            <th>Longest Trail Length</th>
+                        `;
+                    }
+
                     // Populate leaderboard table
                     data.forEach(user => {
-                        // Skip users with no games played
                         const totalGamesPlayed = user.TotalWins + user.TotalLosses;
                         if (totalGamesPlayed === 0) return;
-    
-                        // Calculate win/loss ratio, average moves, and game length with 2 decimal places
-                        const winLossRatio = (user.TotalWins / (user.TotalLosses || 1)).toFixed(2);  // Prevent divide by zero
-                        const averageMoves = (user.AverageMovesPerGame || 0).toFixed(2);  // Format to 2 decimal places
-                        const averageGameLength = (user.AverageGameLengthInSeconds || 0).toFixed(2);  // Format to 2 decimal places
-    
-                        // Create row for the user
+
                         const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td>${user.UserName}</td>
-                            <td>${user.TotalWins}</td>
-                            <td>${user.TotalLosses}</td>
-                            <td>${winLossRatio}</td>
-                            <td>${averageMoves}</td>
-                            <td>${averageGameLength}</td>
-                        `;
-    
+                        if (game === 'tic-tac-toe') {
+                            row.innerHTML = `
+                                <td>${user.UserName}</td>
+                                <td>${user.TotalWins}</td>
+                                <td>${user.TotalLosses}</td>
+                                <td>${(user.TotalWins / (user.TotalLosses || 1)).toFixed(2)}</td>
+                                <td>${user.AverageMovesPerGame.toFixed(2)}</td>
+                                <td>${user.AverageGameLengthInSeconds.toFixed(2)}</td>
+                            `;
+                        } else if (game === 'lightbikes') {
+                            row.innerHTML = `
+                                <td>${user.UserName}</td>
+                                <td>${user.TotalWins}</td>
+                                <td>${user.TotalLosses}</td>
+                                <td>${(user.WinLossRatio || 0).toFixed(2)}</td>
+                                <td>${(user.AverageSteersPerGame || 0).toFixed(2)}</td>
+                                <td>${(user.AverageTrailLength || 0).toFixed(2)}</td>
+                                <td>${(user.LongestTrailLength || 0).toFixed(2)}</td>
+                            `;
+                        }
                         leaderboardTableBody.appendChild(row);
                     });
                 } catch (err) {
                     console.error('Error fetching leaderboard:', err);
                 }
             }
+
     
             // Event listener for game selection
             gameSelect.addEventListener('change', (event) => {
@@ -106,10 +141,10 @@
                     .then(data => {
                         const loginIndicator = document.getElementById('loginIndicator');
                         if (data.isAuthenticated) {
-                            loginIndicator.textContent = `Logged in as ${data.username}`;
-                            loginIndicator.style.color = "green";
+                            //loginIndicator.textContent = `Logged in as ${data.username}`;
+                            loginIndicator.style.backgroundColor = "green";
                         } else {
-                            loginIndicator.textContent = 'Not logged in';
+                            //loginIndicator.textContent = 'Not logged in';
                             loginIndicator.style.color = "red";
                         }
                     })

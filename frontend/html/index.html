@@ -32,8 +32,8 @@
                     .then(data => {
                         const loginIndicator = document.getElementById('loginIndicator');
                         if (data.isAuthenticated) {
-                            loginIndicator.textContent = `Logged in as ${data.username}`;
-                            loginIndicator.style.color = "green";
+                            //loginIndicator.textContent = `Logged in as ${data.username}`;
+                            loginIndicator.style.backgroundColor = "green";
                         } else {
                             loginIndicator.textContent = 'Not logged in';
                             loginIndicator.style.color = "red";

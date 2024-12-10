@@ -92,7 +92,7 @@ module.exports = (io) => {
         // Helper function to handle player leaving
         function handlePlayerLeave(socket) {
             const playerId = socket.userId;
-            matchmakingManager.removePlayerFromQueue(playerId);
+            //matchmakingManager.removePlayerFromQueue(playerId);
             socket.leaveAll();
         }
 

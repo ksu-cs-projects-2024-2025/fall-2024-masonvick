@@ -82,3 +82,34 @@ tbody td {
         text-transform: uppercase;
     }
 }
+
+
+/* Center the header and dropdown */
+.leaderboard-header {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.leaderboard-header h1 {
+    margin-bottom: 10px;
+    font-size: 36px;
+    color: #333;
+}
+
+.game-select {
+    display: inline-block;
+    margin-bottom: 20px;
+}
+
+label {
+    font-size: 18px;
+    margin-right: 10px;
+}
+
+select {
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    outline: none;
+}

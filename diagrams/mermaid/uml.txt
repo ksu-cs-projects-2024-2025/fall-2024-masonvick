@@ -311,3 +311,43 @@ sequenceDiagram
     S-->>P2: emit('rematchRequested')sequenceDiagram
     participant P1 as Player 1
     participant P2 as Player 2
+
+
+   PLAYERS <- CONTROLLER -> MMM -> GF 
+
+sequenceDiagram
+    participant Creator as Player 1 (Creator)
+    participant Browser1 as Browser (Creator)
+    participant Server as Backend Server
+    participant Browser2 as Browser (Joiner)
+    participant Joiner as Player 2 (Joiner)
+
+    Creator->>Browser1: Request Game Code
+    Browser1->>Server: Emit 'createGameCode' event
+    Server->>Browser1: Respond with generated game code
+    Browser1->>Creator: Display game code
+    Joiner->>Browser2: Enter game code
+    Browser2->>Server: Emit 'joinGameByCode' event with code
+    Server->>Server: Validate game code
+    alt Code is valid
+        Server-->>Browser2: Notify success, join room
+        Server-->>Browser1: Notify creator of joiner
+        Server->>Both Players: Emit initial game state
+    else Code is invalid
+        Server-->>Browser2: Emit error message
+    end
+sequenceDiagram
+    participant Controller as gameController
+    participant Matchmaking as matchmakingManager
+    participant GameFactory as GameFactory
+    participant Players as Players
+
+    Controller->>Matchmaking: Call findMatch
+    Matchmaking->>GameFactory: createGame(gameType)
+    GameFactory->>GameFactory: Initialize game
+    GameFactory-->>Matchmaking: Return initialized game
+    Matchmaking-->>Controller: Return gameId and players
+    Controller->>Controller: Add players to room
+    Controller->>Controller: Start game (startGame)
+    Controller->>Players: Emit matchFound
+    Controller->>Players: emit game state
