@@ -74,17 +74,8 @@ tbody td {
         position: relative;
     }
 
-    tbody td:before {
-        content: attr(data-label);
-        position: absolute;
-        left: 10px;
-        font-weight: bold;
-        text-transform: uppercase;
-    }
 }
 
-
-/* Center the header and dropdown */
 .leaderboard-header {
     text-align: center;
     margin: 20px 0;
@@ -94,11 +85,6 @@ tbody td {
     margin-bottom: 10px;
     font-size: 36px;
     color: #333;
-}
-
-.game-select {
-    display: inline-block;
-    margin-bottom: 20px;
 }
 
 label {

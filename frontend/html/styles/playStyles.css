@@ -1,20 +1,20 @@
 button {
-    padding: 15px 30px; /* Adjust padding for a larger button */
-    background-color: #758cb9; /* Use a vibrant color */
+    padding: 15px 30px;
+    background-color: #758cb9;
     color: rgb(255, 255, 255);
     border: none;
-    border-radius: 10px; /* Rounded corners */
+    border-radius: 10px;
     cursor: pointer;
-    font-size: 16px; /* Increase font size */
-    font-weight: bold; /* Make the text stand out */
+    font-size: 16px; 
+    font-weight: bold; 
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Add a subtle shadow */
     transition: all 0.3s ease; /* Smooth hover effects */
     display: flex;
-    justify-content: center; /* Horizontally center */
-    align-items: center; /* Vertically center (if needed) */
-    text-align: center; /* Center the buttons horizontally */
-    display: block; /* Ensure the button is treated as a block element */
-    margin: 0 auto; /* Center it horizontally */
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    display: block; 
+    margin: 0 auto;
 }
 
 button:hover {
@@ -27,4 +27,33 @@ h1 {
     margin: 0 auto; /* Center it horizontally */
     padding: 30px;
     text-align: center; /* Center the buttons horizontally */
+}
+
+/* Popup for Searching Player */
+#searchingPopup {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    z-index: 1000;
+}
+
+#cancelSearchButton {
+    margin-top: 15px;
+    padding: 10px 20px;
+    background-color: #555;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#cancelSearchButton:hover {
+    background-color: #777;
 }

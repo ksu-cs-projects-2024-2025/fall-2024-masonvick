@@ -13,20 +13,11 @@ const waitingRankedPlayers = {
 const generateGameId = () => Math.random().toString(36).substr(2, 9);
 
 
-// Join an existing game by gameId and playerId
+// Join tic tac toe game
 const joinGame = (gameId, playerId) => {
     const game = games[gameId];
     if (game && game.players.length < 2) {
         game.players.push(playerId);
-
-        // Initialize player symbols if not already assigned
-        if (!game.playerSymbols[game.players[0]]) {
-            game.playerSymbols[game.players[0]] = 'X';
-        }
-        if (!game.playerSymbols[game.players[1]]) {
-            game.playerSymbols[game.players[1]] = 'O';
-        }
-
         console.log(`Player ${playerId} joined game ${gameId}. Players: ${game.players}`);
         return game;
     }
@@ -34,25 +25,50 @@ const joinGame = (gameId, playerId) => {
     return null;
 };
 
+// Tic Tac Toe quickmatch
+const findTicTacToeMatch = (io, playerId, connectedPlayers) => {
+    console.log(`Looking for a Tic-Tac-Toe match for player ${playerId}`);
+
+    if (!waitingPlayers['tic-tac-toe']) {
+        waitingPlayers['tic-tac-toe'] = [];
+    }
+
+    const opponent = waitingPlayers['tic-tac-toe'].find(id => id !== playerId);
+
+    if (opponent) {
+        console.log(`Found opponent: ${opponent} for player ${playerId}`);
+
+        waitingPlayers['tic-tac-toe'] = waitingPlayers['tic-tac-toe'].filter(id => id !== opponent);
+
+        const gameId = generateGameId();
+        const game = createGame('tic-tac-toe');
+        game.players = [playerId, opponent];
+        games[gameId] = game;
+
+        // Fetch socket IDs for both players from `connectedPlayers`
+        const playerSocket = connectedPlayers[playerId];   // Use connectedPlayers
+        const opponentSocket = connectedPlayers[opponent]; // Use connectedPlayers
+
+        if (playerSocket && opponentSocket) {
+            console.log(`returning from findTicTacToeMatch to player ${playerId} and opponent ${opponent}`);
+            return { gameId, opponent };
+        } else {
+            console.error('Socket ID missing for one or both players:', { playerSocket, opponentSocket });
+        }
+    } else {
+        // No match found, add the player to the queue
+        console.log(`No opponent found. Adding player ${playerId} to the queue.`);
+        waitingPlayers['tic-tac-toe'].push(playerId);
+        return null;
+    }
+};
+
 const joinLightbikesGame = (gameId, playerId) => {
     const game = games[gameId];
+    
     if (game && game.players.length < 2) {
         game.players.push(playerId);
-
         console.log(`Player ${playerId} joined Lightbikes game ${gameId}. Players: ${game.players}`);
-
-        // Initialize player positions if not already set
-        if (!game.gameState.playerPositions[playerId]) {
-            game.gameState.playerPositions[playerId] = {
-                x: Math.floor(Math.random() * 100), // Random starting x-coordinate
-                y: Math.floor(Math.random() * 100), // Random starting y-coordinate
-                direction: 'up',                    // Default direction
-                trail: [],                          // Empty trail
-                trailLength: 0,                     // Start with no trail
-                steers: []                          // Initialize steers array
-            };
-        }
-
         return game;
     }
     console.error(`Failed to join Lightbikes game ${gameId}. Either it doesn't exist or it's full.`);
@@ -95,45 +111,6 @@ const findLightbikesMatch = (io, playerId, connectedPlayers) => {
         };
     } else {
         console.log(`Not enough players yet. Player ${playerId} added to the queue.`);
-        return null;
-    }
-};
-
-
-// Tic Tac Toe matchmaking (quickmatch)
-const findTicTacToeMatch = (io, playerId, connectedPlayers) => {
-    console.log(`Looking for a Tic-Tac-Toe match for player ${playerId}`);
-
-    if (!waitingPlayers['tic-tac-toe']) {
-        waitingPlayers['tic-tac-toe'] = [];
-    }
-
-    const opponent = waitingPlayers['tic-tac-toe'].find(id => id !== playerId);
-
-    if (opponent) {
-        console.log(`Found opponent: ${opponent} for player ${playerId}`);
-
-        waitingPlayers['tic-tac-toe'] = waitingPlayers['tic-tac-toe'].filter(id => id !== opponent);
-
-        const gameId = generateGameId();
-        const game = createGame('tic-tac-toe');
-        game.players = [playerId, opponent];
-        games[gameId] = game;
-
-        // Fetch socket IDs for both players from `connectedPlayers`
-        const playerSocket = connectedPlayers[playerId];   // Use connectedPlayers
-        const opponentSocket = connectedPlayers[opponent]; // Use connectedPlayers
-
-        if (playerSocket && opponentSocket) {
-            console.log(`returning from findTicTacToeMatch to player ${playerId} and opponent ${opponent}`);
-            return { gameId, opponent };
-        } else {
-            console.error('Socket ID missing for one or both players:', { playerSocket, opponentSocket });
-        }
-    } else {
-        // No match found, add the player to the queue
-        console.log(`No opponent found. Adding player ${playerId} to the queue.`);
-        waitingPlayers['tic-tac-toe'].push(playerId);
         return null;
     }
 };
@@ -215,8 +192,7 @@ function findRankedMatch(gameType, playerId, playerRating, connectedPlayers) {
     }
 }
 
-
-// Create a new game session
+// Create a new game session (play via code)
 const createGameSession = (gameType, playerId) => {
     const gameId = generateGameId(); // Generate unique game ID
     const game = createGame(gameType); // Create a new game instance

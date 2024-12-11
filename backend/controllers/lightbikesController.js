@@ -1,7 +1,4 @@
 // backend/controllers/lightbikesController.js
-
-const { connect } = require('http2');
-const { getPlayerSkillRating } = require('../utils');
 const matchmakingManager = require('../matchmakingManager');
 const sql = require('mssql');
 const connectedPlayers = {};
@@ -23,7 +20,7 @@ exports.findMatch = (io, socket, gameType, userId) => {
             const playerSocket = io.of('/lightbikes').sockets.get(connectedPlayers[playerId]);
             if (playerSocket) {
                 playerSocket.join(gameId);
-                playerSocket.gameId = gameId;  // Add this line
+                playerSocket.gameId = gameId;
                 console.log(`Player ${playerId} joined room ${gameId}`);
                 playerSocket.emit('matchFound', { gameId, players }); // Notify both players of the match
             } else {
@@ -36,6 +33,89 @@ exports.findMatch = (io, socket, gameType, userId) => {
     } else {
         console.log(`User ${userId} is waiting for a match in ${gameType}`);
     }
+};
+
+exports.findRankedMatch = (io, socket, gameType, userId, skillRating) => {
+    console.log(`Looking for a ranked Lightbikes match for user ${userId} with rating ${skillRating}`);
+
+    // Store the player's socket ID
+    connectedPlayers[userId] = socket.id;
+
+    // Attempt to find a ranked match through matchmakingManager
+    const match = matchmakingManager.findRankedMatch(gameType, userId, skillRating, connectedPlayers);
+
+    if (match) {
+        const { gameId, players } = match;
+
+        players.forEach(playerId => {
+            const playerSocket = io.of('/lightbikes').sockets.get(connectedPlayers[playerId]);
+            if (playerSocket) {
+                playerSocket.join(gameId);
+                playerSocket.gameId = gameId;
+                console.log(`Player ${playerId} joined ranked Lightbikes room ${gameId}`);
+                playerSocket.emit('matchFound', { gameId, players });
+            } else {
+                console.error(`Socket not found for ranked Lightbikes player ${playerId}`);
+            }
+        });
+
+        // Emit initial game state and start the Lightbikes game loop
+        exports.emitGameState(io, gameId);
+        exports.startGame(io, gameId);
+    } else {
+        // No match found yet; user waits in the queue
+        console.log(`User ${userId} with rating ${skillRating} is waiting for a ranked Lightbikes match.`);
+    }
+};
+
+
+// Function to handle a player joining a game room
+exports.joinGame = (io, socket, gameId) => {
+    const game = matchmakingManager.games[gameId];
+
+    if (game) {
+        console.log(`Player joined game ${gameId}`);
+        socket.join(gameId);  // Ensure the socket joins the room
+        // Initialize game state if it's not set for a new game or rematch
+        if (!game.gameState) {
+            game.gameState = game.initializeGameState();
+        }
+        socket.emit('gameState', game.gameState);  // Emit the initial game state to the player who joined
+    } else {
+        console.error(`Game with ID ${gameId} not found`);
+    }
+};
+
+exports.joinGameByCode = (io, socket, gameId, userId) => {
+    const game = matchmakingManager.joinLightbikesGame(gameId, userId);
+    if (!game) {
+        console.error(`Lightbikes game with ID ${gameId} not found or is full.`);
+        return false;
+    }
+
+    // Ensure connectedPlayers[userId] is set
+    connectedPlayers[userId] = socket.id;
+
+    // Join both players to the game room
+    game.players.forEach((playerId) => {
+        const playerSocketId = connectedPlayers[playerId];
+        const playerSocket = io.of('/lightbikes').sockets.get(playerSocketId);
+        if (playerSocket) {
+            playerSocket.join(gameId);
+        } else {
+            console.error(`Socket not found for player ${playerId}`);
+        }
+    });
+
+    // Notify both players
+    socket.emit('matchFound', { gameId, players: game.players });
+    socket.broadcast.to(gameId).emit('matchFound', { gameId, players: game.players });
+
+    // Start or emit initial game state
+    exports.emitGameState(io, gameId);
+    exports.startGame(io, gameId);
+
+    return true;
 };
 
 // Start the game
@@ -51,8 +131,6 @@ exports.startGame = (io, gameId) => {
         clearInterval(game.interval);
     }
 
-    // Initialize game state and players' starting positions
-    //game.gameState = game.initializeGameState();
     game.state = new Uint8Array(WIDTH * HEIGHT); // Store the grid as a 1D array for trails
 
     console.log(`Starting game ${gameId} with players: ${game.players}`);
@@ -153,18 +231,6 @@ exports.startGame = (io, gameId) => {
     }, 100);  // Game loop interval for real-time updates
 };
 
-// Emit the game state to all players
-exports.emitGameState = (io, gameId) => {
-    const game = matchmakingManager.games[gameId];
-    if (game) {
-        //const gameState = game.gameState;
-        console.log(`Emitting game state for gameId ${gameId} to room ${gameId}`); 
-        io.of('/lightbikes').to(gameId).emit('gameState', game.gameState);  // Emit to all players in the room
-    } else {
-        console.error(`Game with ID ${gameId} not found.`);
-    }
-};
-
 exports.createGame = (io, socket, gameType, userId) => {
     try {
         const gameId = matchmakingManager.createGameSession(gameType, userId);
@@ -192,42 +258,9 @@ exports.createGame = (io, socket, gameType, userId) => {
     }
 };
 
-exports.joinGameByCode = (io, socket, gameId, userId) => {
-    const game = matchmakingManager.joinLightbikesGame(gameId, userId);
-    if (!game) {
-        console.error(`Lightbikes game with ID ${gameId} not found or is full.`);
-        return false;
-    }
-
-    // Ensure connectedPlayers[userId] is set
-    connectedPlayers[userId] = socket.id;
-
-    // Join both players to the game room
-    game.players.forEach((playerId) => {
-        const playerSocketId = connectedPlayers[playerId];
-        const playerSocket = io.of('/lightbikes').sockets.get(playerSocketId);
-        if (playerSocket) {
-            playerSocket.join(gameId);
-        } else {
-            console.error(`Socket not found for player ${playerId}`);
-        }
-    });
-
-    // Notify both players
-    socket.emit('matchFound', { gameId, players: game.players });
-    socket.broadcast.to(gameId).emit('matchFound', { gameId, players: game.players });
-
-    // Start or emit initial game state, just like in quick match
-    exports.emitGameState(io, gameId);
-    exports.startGame(io, gameId);
-
-    return true;
-};
-
-
 // Handle steering when arrow keys are pressed
 exports.handleSteer = (io, socket, { gameId, direction }) => {
-    console.log(`Received steering input: ${direction} for gameId: ${gameId}`);  // Debugging log
+    console.log(`Received steering input: ${direction} for gameId: ${gameId}`);
     console.log(`Processing steer from user: ${socket.userId}`);
 
     const game = matchmakingManager.games[gameId];
@@ -264,56 +297,65 @@ exports.handleSteer = (io, socket, { gameId, direction }) => {
 
 };
 
-exports.findRankedMatch = (io, socket, gameType, userId, skillRating) => {
-    console.log(`Looking for a ranked Lightbikes match for user ${userId} with rating ${skillRating}`);
-
-    // Store the player's socket ID
-    connectedPlayers[userId] = socket.id;
-
-    // Attempt to find a ranked match through matchmakingManager
-    const match = matchmakingManager.findRankedMatch(gameType, userId, skillRating, connectedPlayers);
-
-    if (match) {
-        const { gameId, players } = match;
-
-        players.forEach(playerId => {
-            const playerSocket = io.of('/lightbikes').sockets.get(connectedPlayers[playerId]);
-            if (playerSocket) {
-                playerSocket.join(gameId);
-                playerSocket.gameId = gameId;
-                console.log(`Player ${playerId} joined ranked Lightbikes room ${gameId}`);
-                playerSocket.emit('matchFound', { gameId, players });
-            } else {
-                console.error(`Socket not found for ranked Lightbikes player ${playerId}`);
-            }
-        });
-
-        // Emit initial game state and start the Lightbikes game loop
-        exports.emitGameState(io, gameId);
-        exports.startGame(io, gameId);
-    } else {
-        // No match found yet; user waits in the queue
-        console.log(`User ${userId} with rating ${skillRating} is waiting for a ranked Lightbikes match.`);
-    }
-};
-
-
-// Function to handle a player joining a game room
-exports.joinGame = (io, socket, gameId) => {
+// Emit the game state to all players
+exports.emitGameState = (io, gameId) => {
     const game = matchmakingManager.games[gameId];
-
     if (game) {
-        console.log(`Player joined game ${gameId}`);
-        socket.join(gameId);  // Ensure the socket joins the room
-        // Initialize game state if it's not set for a new game or rematch
-        if (!game.gameState) {
-            game.gameState = game.initializeGameState();
-        }
-        socket.emit('gameState', game.gameState);  // Emit the initial game state to the player who joined
+        console.log(`Emitting game state for gameId ${gameId} to room ${gameId}`); 
+        io.of('/lightbikes').to(gameId).emit('gameState', game.gameState);  // Emit to all players in the room
     } else {
-        console.error(`Game with ID ${gameId} not found`);
+        console.error(`Game with ID ${gameId} not found.`);
     }
 };
+
+function checkCollision(game, playerPosition) {
+    const { x, y } = playerPosition;
+
+    // Check for collision with walls
+    if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) {
+        return true;
+    }
+
+    // Check for collision with other players' trails
+    if (game.state[y * WIDTH + x] !== 0) {
+        return true;
+    }
+
+    return false;
+}
+
+// Get random starting positions for players\
+function getRandomStartingPosition() {
+    const buffer = 10;
+    return {
+        //set random x and y positions within the game board using a buffer
+        // to ensure that the players are not too close to each other or the walls
+        x: Math.floor(Math.random() * (WIDTH - 2 * buffer)) + buffer,
+        y: Math.floor(Math.random() * (HEIGHT - 2 * buffer)) + buffer
+    };
+}
+
+function getRandomDirection() {
+    const directions = ['up', 'down', 'left', 'right'];
+    return directions[Math.floor(Math.random() * directions.length)];
+}
+
+function getOpponent(playerId, game) {
+    return game.players.find(id => id !== playerId);
+}
+
+
+//players can only change direction if they are not moving in the opposite direction
+//(used to die if they went directly backwards)
+function isValidDirectionChange(currentDir, newDir) {
+    const invalidPairs = {
+        'up': 'down',
+        'down': 'up',
+        'left': 'right',
+        'right': 'left'
+    };
+    return invalidPairs[currentDir] !== newDir;
+}
 
 // This function ends the game and performs cleanup.
 const endGame = (io, gameId, winnerId) => {
@@ -341,6 +383,7 @@ const endGame = (io, gameId, winnerId) => {
     console.log(`Game ${gameId} has ended and been removed from matchmaking manager.`);
 };
 
+
 // Function to store Lightbikes game data in the database
 async function storeLightbikesGameInDB(player1Id, player2Id, winnerId, player1Steers, player2Steers, player1TrailLength, player2TrailLength, startTime, endTime) {
     try {
@@ -364,80 +407,4 @@ async function storeLightbikesGameInDB(player1Id, player2Id, winnerId, player1St
     } catch (err) {
         console.error('Error inserting Lightbikes game data into the database:', err);
     }
-}
-
-// Utility functions for collision detection, random starting positions, etc.
-function checkCollision(game, playerPosition) {
-    const { x, y } = playerPosition;
-
-    // Check for collision with walls
-    if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) {
-        return true;
-    }
-
-    // Check for collision with other players' trails
-    if (game.state[y * WIDTH + x] !== 0) {
-        return true;
-    }
-
-    return false;
-}
-
-// Get random starting positions, ensuring players aren't too close to each other or walls
-function getRandomStartingPosition(game) {
-    const gridSize = 100;  // Assuming the grid is 100x100
-    const buffer = 10;     // Buffer distance from the walls and between players
-
-    let x, y;
-    let validPosition = false;
-
-    while (!validPosition) {
-        x = Math.floor(Math.random() * (gridSize - 2 * buffer)) + buffer;  // Avoid walls
-        y = Math.floor(Math.random() * (gridSize - 2 * buffer)) + buffer;
-
-        // Check if the position is too close to other players
-        validPosition = true;
-        for (const playerId in game.gameState.playerPositions) {
-            const otherPosition = game.gameState.playerPositions[playerId];
-            const distance = Math.sqrt(Math.pow(x - otherPosition.x, 2) + Math.pow(y - otherPosition.y, 2));
-            if (distance < buffer) {
-                validPosition = false;  // Too close to another player
-                break;
-            }
-        }
-    }
-
-    return { x, y };
-}
-
-function getRandomStartingPosition() {
-    const buffer = 10;
-    return {
-        //set random x and y positions within the game board using a buffer
-        // to ensure that the players are not too close to each other or the walls
-        x: Math.floor(Math.random() * (WIDTH - 2 * buffer)) + buffer,
-        y: Math.floor(Math.random() * (HEIGHT - 2 * buffer)) + buffer
-    };
-}
-
-function getRandomDirection() {
-    const directions = ['up', 'down', 'left', 'right'];
-    return directions[Math.floor(Math.random() * directions.length)];
-}
-
-function getOpponent(playerId, game) {
-    return game.players.find(id => id !== playerId);
-}
-
-
-//players can only change direction if they are not moving in the opposite direction
-//used to die if they went directly backwards
-function isValidDirectionChange(currentDir, newDir) {
-    const invalidPairs = {
-        'up': 'down',
-        'down': 'up',
-        'left': 'right',
-        'right': 'left'
-    };
-    return invalidPairs[currentDir] !== newDir;
 }

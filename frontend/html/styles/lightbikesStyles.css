@@ -18,6 +18,19 @@
     margin: 20px 0;
 }
 
+button {
+    padding: 10px 20px;
+    background-color: #333;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #555;
+}
+
 /* Centered title */
 #gameTitle {
     text-align: center;

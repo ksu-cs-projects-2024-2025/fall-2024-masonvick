@@ -1,5 +1,5 @@
 // frontend/authCheck.js
-function checkSession() {
+/*function checkSession() {
     fetch('/api/session', { credentials: 'include' })
         .then(response => response.json())
         .then(data => {
@@ -24,4 +24,4 @@ function checkSession() {
 
 // Automatically check session when the page loads
 document.addEventListener('DOMContentLoaded', checkSession);
-
+*/

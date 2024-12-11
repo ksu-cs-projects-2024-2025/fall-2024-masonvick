@@ -2,10 +2,8 @@
 
 const matchmakingManager = require('../matchmakingManager');
 const sql = require('mssql');
-const { getPlayerSkillRating } = require('../utils');
 
-//dict to store connected players
-// [userId: socketId]
+// store connected players
 const connectedPlayers = {};
 
 // Handle user requests for Quick Match
@@ -43,6 +41,148 @@ exports.findMatch = (io, socket, gameType, userId) => {
     }
 };
 
+exports.findRankedMatch = (io, socket, gameType, userId, skillRating) => {
+    console.log(`Looking for a ranked Tic-Tac-Toe match for user ${userId} with rating ${skillRating}`);
+
+    // Store the player's socket ID
+    connectedPlayers[userId] = socket.id;
+
+    const match = matchmakingManager.findRankedMatch(gameType, userId, skillRating, connectedPlayers);
+
+    // If no match found, just return
+    if (!match) {
+        console.log(`User ${userId} with rating ${skillRating} is waiting for a ranked Tic-Tac-Toe match.`);
+        return;
+    }
+
+    const { gameId, players } = match;
+
+    // The first player in the array is 'X', the second is 'O'
+    const playerX = players[0];
+    const playerO = players[1];
+
+    // Now send `matchFound` with the symbol to each player
+    const playerXSocket = io.of('/tic-tac-toe').sockets.get(connectedPlayers[playerX]);
+    const playerOSocket = io.of('/tic-tac-toe').sockets.get(connectedPlayers[playerO]);
+
+    if (playerXSocket) {
+        playerXSocket.join(gameId);
+        playerXSocket.gameId = gameId;
+        console.log(`Player ${playerX} joined ranked room ${gameId}`);
+        playerXSocket.emit('matchFound', { gameId, opponent: playerO, symbol: 'X' });
+    } else {
+        console.error(`Socket not found for ranked player ${playerX}`);
+    }
+
+    if (playerOSocket) {
+        playerOSocket.join(gameId);
+        playerOSocket.gameId = gameId;
+        console.log(`Player ${playerO} joined ranked room ${gameId}`);
+        playerOSocket.emit('matchFound', { gameId, opponent: playerX, symbol: 'O' });
+    } else {
+        console.error(`Socket not found for ranked player ${playerO}`);
+    }
+
+    // Start the Tic Tac Toe game
+    exports.startGame(io, gameId);
+};
+
+exports.joinGameByCode = (io, socket, gameId, userId) => {
+    const game = matchmakingManager.joinGame(gameId, userId);
+    if (!game) {
+        console.error(`Game with ID ${gameId} not found or is full.`);
+        return false;
+    }
+
+    console.log(`Game found with ID: ${gameId}. Pairing players: ${game.players.join(', ')}`);
+
+    // Add both players to the game room
+    game.players.forEach((playerId) => {
+        const playerSocketId = playerId === userId ? socket.id : connectedPlayers[playerId];
+        const playerSocket = io.of('/tic-tac-toe').sockets.get(playerSocketId);
+        if (playerSocket) {
+            playerSocket.join(gameId);
+        } else {
+            console.error(`Socket not found for player ${playerId}`);
+        }
+    });
+
+    // Notify both players
+    const [player1, player2] = game.players;
+    const player1Symbol = 'X';
+    const player2Symbol = 'O';
+
+    //socket.emit('matchFound', { gameId, opponent: player2, symbol: player1Symbol });
+    //socket.broadcast.to(gameId).emit('matchFound', { gameId, opponent: player1, symbol: player2Symbol });
+
+    socket.emit('matchFound', { 
+        gameId, 
+        opponent: game.players.find(id => id !== userId), 
+        symbol: game.playerSymbols[userId] 
+    });
+    
+    socket.broadcast.to(gameId).emit('matchFound', { 
+        gameId, 
+        opponent: userId, 
+        symbol: game.playerSymbols[game.players.find(id => id !== userId)] 
+    });
+
+    // Emit the initial game state
+    exports.emitGameState(io, gameId);
+    return true;
+};
+
+// start the game
+exports.startGame = (io, gameId) => {
+    const game = matchmakingManager.games[gameId];
+    if (!game) {
+        console.error(`Game with ID ${gameId} not found`);
+        return;
+    }
+
+    // Assign symbols to players
+    game.playerSymbols = {
+        [game.players[0]]: 'X', 
+        [game.players[1]]: 'O' 
+    };
+
+    console.log(`Starting Tic-Tac-Toe game ${gameId} with players:`, game.players);
+
+    // Emit the initial game state to all players in the room
+    exports.emitGameState(io, gameId);
+};
+
+exports.createGame = (io, socket, gameType, userId) => {
+    try {
+        // Step 1: Generate a new game session
+        const gameId = matchmakingManager.createGameSession(gameType, userId);
+        const game = matchmakingManager.games[gameId];
+
+        if (!game) {
+            console.error(`Failed to create game session for user ${userId}.`);
+            return null;
+        }
+
+        // Step 2: Initialize game state
+        game.players = [userId]; // Add the creating player
+        game.playerSymbols[userId] = 'X'; // Assign 'X' to the creator
+        game.currentPlayer = 'X'; // 'X' always starts
+
+        console.log(`Game created with ID: ${gameId} by user ${userId}`);
+        
+        // Map the creator's userId to their socket ID (if not already done)
+        connectedPlayers[userId] = socket.id;
+
+        // Step 3: Notify the creator of the game
+        socket.emit('gameCreated', { gameId });
+        
+        return gameId;
+    } catch (error) {
+        console.error('Error creating game:', error);
+        socket.emit('error', { message: 'Failed to create game. Please try again.' });
+        return null;
+    }
+};
 
 // Handle player moves
 exports.handleMove = async (io, socket, { gameId, index }) => {
@@ -110,31 +250,6 @@ exports.handleMove = async (io, socket, { gameId, index }) => {
     }
 };
 
-// Define the startGame function
-exports.startGame = (io, gameId) => {
-    const game = matchmakingManager.games[gameId];
-    if (!game) {
-        console.error(`Game with ID ${gameId} not found`);
-        return;
-    }
-
-    // Initialize game state and players
-    //game.board = Array(9).fill(null);  // Tic-Tac-Toe has 9 cells
-    //game.currentPlayer = 'X';  // 'X' always starts first
-    //game.winner = null;
-
-    // Assign symbols to players
-    game.playerSymbols = {
-        [game.players[0]]: 'X',  // First player gets 'X'
-        [game.players[1]]: 'O'   // Second player gets 'O'
-    };
-
-    console.log(`Starting Tic-Tac-Toe game ${gameId} with players:`, game.players);
-
-    // Emit the initial game state to all players in the room
-    exports.emitGameState(io, gameId);
-};
-
 // Emit the game state to all players in the room
 exports.emitGameState = (io, gameId) => {
     const game = matchmakingManager.games[gameId];
@@ -145,54 +260,6 @@ exports.emitGameState = (io, gameId) => {
         console.error(`Game with ID ${gameId} not found.`);
     }
 };
-
-exports.findRankedMatch = (io, socket, gameType, userId, skillRating) => {
-    console.log(`Looking for a ranked Tic-Tac-Toe match for user ${userId} with rating ${skillRating}`);
-
-    // Store the player's socket ID
-    connectedPlayers[userId] = socket.id;
-
-    const match = matchmakingManager.findRankedMatch(gameType, userId, skillRating, connectedPlayers);
-
-    // If no match found, just return
-    if (!match) {
-        console.log(`User ${userId} with rating ${skillRating} is waiting for a ranked Tic-Tac-Toe match.`);
-        return;
-    }
-
-    const { gameId, players } = match;
-
-    // The first player in the array is 'X', the second is 'O'
-    const playerX = players[0];
-    const playerO = players[1];
-
-    // Now send `matchFound` with the symbol to each player
-    const playerXSocket = io.of('/tic-tac-toe').sockets.get(connectedPlayers[playerX]);
-    const playerOSocket = io.of('/tic-tac-toe').sockets.get(connectedPlayers[playerO]);
-
-    if (playerXSocket) {
-        playerXSocket.join(gameId);
-        playerXSocket.gameId = gameId;
-        console.log(`Player ${playerX} joined ranked room ${gameId}`);
-        playerXSocket.emit('matchFound', { gameId, opponent: playerO, symbol: 'X' });
-    } else {
-        console.error(`Socket not found for ranked player ${playerX}`);
-    }
-
-    if (playerOSocket) {
-        playerOSocket.join(gameId);
-        playerOSocket.gameId = gameId;
-        console.log(`Player ${playerO} joined ranked room ${gameId}`);
-        playerOSocket.emit('matchFound', { gameId, opponent: playerX, symbol: 'O' });
-    } else {
-        console.error(`Socket not found for ranked player ${playerO}`);
-    }
-
-    // Start the Tic Tac Toe game
-    exports.startGame(io, gameId);
-};
-
-
 
 // Handle game forfeiture when a player disconnects or leaves the game
 exports.forfeitGame = (io, userId) => {
@@ -247,194 +314,3 @@ function checkWinner(board) {
     }
     return null;
 }
-
-
-//
-//
-// Section for games via codes
-//
-//
-
-exports.createGame = (io, socket, gameType, userId) => {
-    try {
-        // Step 1: Generate a new game session
-        const gameId = matchmakingManager.createGameSession(gameType, userId);
-        const game = matchmakingManager.games[gameId];
-
-        if (!game) {
-            console.error(`Failed to create game session for user ${userId}.`);
-            return null;
-        }
-
-        // Step 2: Initialize game state
-        game.players = [userId]; // Add the creating player
-        game.playerSymbols[userId] = 'X'; // Assign 'X' to the creator
-        game.currentPlayer = 'X'; // 'X' always starts
-
-        console.log(`Game created with ID: ${gameId} by user ${userId}`);
-        
-        // Map the creator's userId to their socket ID (if not already done)
-        connectedPlayers[userId] = socket.id;
-
-        // Step 3: Notify the creator of the game
-        socket.emit('gameCreated', { gameId });
-        
-        return gameId;
-    } catch (error) {
-        console.error('Error creating game:', error);
-        socket.emit('error', { message: 'Failed to create game. Please try again.' });
-        return null;
-    }
-};
-
-exports.joinGameByCode = (io, socket, gameId, userId) => {
-    const game = matchmakingManager.joinGame(gameId, userId);
-    if (!game) {
-        console.error(`Game with ID ${gameId} not found or is full.`);
-        return false;
-    }
-
-    console.log(`Game found with ID: ${gameId}. Pairing players: ${game.players.join(', ')}`);
-
-    // Add both players to the game room
-    game.players.forEach((playerId) => {
-        const playerSocketId = playerId === userId ? socket.id : connectedPlayers[playerId];
-        const playerSocket = io.of('/tic-tac-toe').sockets.get(playerSocketId);
-        if (playerSocket) {
-            playerSocket.join(gameId);
-        } else {
-            console.error(`Socket not found for player ${playerId}`);
-        }
-    });
-
-    // Notify both players
-    const [player1, player2] = game.players;
-    const player1Symbol = 'X';
-    const player2Symbol = 'O';
-
-    //socket.emit('matchFound', { gameId, opponent: player2, symbol: player1Symbol });
-    //socket.broadcast.to(gameId).emit('matchFound', { gameId, opponent: player1, symbol: player2Symbol });
-
-    socket.emit('matchFound', { 
-        gameId, 
-        opponent: game.players.find(id => id !== userId), 
-        symbol: game.playerSymbols[userId] 
-    });
-    
-    socket.broadcast.to(gameId).emit('matchFound', { 
-        gameId, 
-        opponent: userId, 
-        symbol: game.playerSymbols[game.players.find(id => id !== userId)] 
-    });
-
-    // Emit the initial game state
-    exports.emitGameState(io, gameId);
-    return true;
-};
-
-
-
-// Following code is for enabling a rematch option, but not used for now
-
-/*
-// Handle game reset
-exports.resetGame = (io, socket, gameId) => {
-    const game = matchmakingManager.games[gameId];
-    if (!game) {
-        console.error(`Game with ID ${gameId} not found.`);
-        return;
-    }
-
-    game.board = Array(9).fill(null);
-    game.currentPlayer = 'X';
-    game.winner = null;
-
-    const gameState = game.getGameState();
-    io.of('/tic-tac-toe').to(gameId).emit('gameState', gameState);
-};
-
-// Handle rematch request (reset game button)
-exports.requestRematch = (io, socket, gameId) => {
-    const game = matchmakingManager.games[gameId];
-    if (!game) {
-        console.error(`Game with ID ${gameId} not found.`);
-        return;
-    }
-
-    const playerId = socket.userId;
-    const opponentId = game.players.find(id => id !== playerId);
-    const opponentSocketId = connectedPlayers[opponentId];
-
-    if (opponentSocketId) {
-        const opponentSocket = io.of('/tic-tac-toe').sockets.get(opponentSocketId);
-        if (opponentSocket) {
-            console.log(`Sending rematch request from ${playerId} to ${opponentId}`);
-            // Send rematch request to opponent
-            opponentSocket.emit('rematchRequested');
-        } else {
-            console.error(`Opponent's socket (${opponentSocketId}) not found in the /tic-tac-toe namespace.`);
-        }
-    } else {
-        console.error(`Opponent's socket ID for user ${opponentId} not found in connectedPlayers.`);
-    }
-};
-
-// Handle rematch acceptance
-exports.acceptRematch = (io, socket, gameId) => {
-    const game = matchmakingManager.games[gameId];
-    if (!game) {
-        console.error(`Game with ID ${gameId} not found.`);
-        return;
-    }
-
-    // Swap who goes first by swapping player symbols
-    const [player1Id, player2Id] = game.players;
-    const playerSymbols = game.playerSymbols;
-
-    // Swap the symbols
-    const tempSymbol = playerSymbols[player1Id];
-    playerSymbols[player1Id] = playerSymbols[player2Id];
-    playerSymbols[player2Id] = tempSymbol;
-
-    game.playerSymbols = playerSymbols;
-
-    // Reset game state
-    game.board = Array(9).fill(null);
-    game.winner = null;
-    game.currentPlayer = 'X'; // Always start with 'X'
-
-    console.log(`Rematch accepted. Players ${player1Id} and ${player2Id} have swapped symbols.`);
-
-    // Notify both players that rematch was accepted
-    io.of('/tic-tac-toe').to(gameId).emit('rematchAccepted');
-
-    // Emit the new game state
-    const gameState = game.getGameState();
-    io.of('/tic-tac-toe').to(gameId).emit('gameState', gameState);
-};
-
-// Handle rematch decline
-exports.declineRematch = (io, socket, gameId) => {
-    const game = matchmakingManager.games[gameId];
-    if (!game) {
-        console.error(`Game with ID ${gameId} not found.`);
-        return;
-    }
-
-    const playerId = socket.userId;
-    const opponentId = game.players.find(id => id !== playerId);
-    const opponentSocketId = connectedPlayers[opponentId];
-
-    // Notify both players that rematch was declined
-    socket.emit('rematchDeclined');
-    if (opponentSocketId) {
-        const opponentSocket = io.of('/tic-tac-toe').sockets.get(opponentSocketId);
-        if (opponentSocket) {
-            opponentSocket.emit('rematchDeclined');
-        }
-    }
-
-    console.log(`Rematch declined by player ${playerId}`);
-};
-
-*/
